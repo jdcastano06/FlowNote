@@ -1,117 +1,237 @@
-The content below is an example project proposal / requirements document. Replace the text below the lines marked "__TODO__" with details specific to your project. Remove the "TODO" lines.
-
-(__TODO__: your project name)
-
-# Shoppy Shoperson 
+# IntelliNote: AI-Powered Lecture Notetaking Assistant
 
 ## Overview
 
-(__TODO__: a brief one or two paragraph, high-level description of your project)
+IntelliNote is a web application designed to assist students in **reducing cognitive load** during lectures and studying. Many students struggle to take detailed notes while simultaneously trying to understand explanations, examples, and context. Listening, processing, and writing at the same time often leads to incomplete notes and gaps in understanding.
 
-Remembering what to buy at the grocery store is waaaaay too difficult. Also, shopping for groceries when you're hungry leads to regrettable purchases. Sooo... that's where Shoppy Shoperson comes in!
+This application allows students to **upload or record lecture audio**, which is automatically transcribed using Azure Speech-to-Text. The transcript is then processed by **GPT-4o mini** (chosen for its cost/performance balance) to generate clean, structured summaries, key takeaways, and optional study aids such as flashcards or quiz questions. Students can organize their notes into different courses and revisit summaries to reinforce memory retention.
 
-Shoppy Shoperson is a web app that will allow users to keep track of multiple grocery lists. Users can register and login. Once they're logged in, they can create or view their grocery list. For every list that they have, they can add items to the list or cross off items.
+The goal is to improve **comprehension, study efficiency, and retention**—not just generate raw transcripts, but **meaningful, usable notes**.
 
+---
 
 ## Data Model
 
-(__TODO__: a description of your application's data and their relationships to each other) 
+The system will store **Users**, **Courses**, **Lectures**, **Transcripts**, and **Study Packs**.
 
-The application will store Users, Lists and Items
+- A **User** may have multiple **Courses**
+- Each **Course** may have multiple **Lectures**
+- Each **Lecture** has one **Transcript**
+- Each **Lecture** has one generated **Study Pack** (summary, flashcards, etc.)
 
-* users can have multiple lists (via references)
-* each list can have multiple items (by embedding)
+### Sample Documents
 
-(__TODO__: sample documents)
-
-An Example User:
-
-```javascript
+#### User
+```js
 {
-  username: "shannonshopper",
-  hash: // a password hash,
-  lists: // an array of references to List documents
+  username: "juan",
+  passwordHash: "hashed_password",
+  courses: [ObjectId("..."), ObjectId("...")]
+}
+````
+
+#### Course
+
+```js
+{
+  user: ObjectId("..."),
+  title: "CS-UH 2012 - Software Engineering",
+  description: "Lecture and project-based introduction to software engineering.",
+  createdAt: "2025-10-29T20:20:32.000Z"
 }
 ```
 
-An Example List with Embedded Items:
+#### Lecture
 
-```javascript
+```js
 {
-  user: // a reference to a User object
-  name: "Breakfast foods",
-  items: [
-    { name: "pancakes", quantity: "9876", checked: false},
-    { name: "ramen", quantity: "2", checked: true},
+  courseId: ObjectId("..."),
+  title: "Week 3 - Event Loops & Concurrency",
+  audioUrl: "/uploads/week3.m4a",
+  status: "processed", // uploaded | transcribed | processed
+  createdAt: "2025-10-29T21:10:12.000Z"
+}
+```
+
+#### Transcript
+
+```js
+{
+  lectureId: ObjectId("..."),
+  text: "Full transcript text...",
+  segments: [
+    { start: 0.0, end: 4.2, text: "Today we'll cover event loops..." }
+  ]
+}
+```
+
+#### StudyPack
+
+```js
+{
+  lectureId: ObjectId("..."),
+  summary: "This lecture introduces event loops...",
+  keyPoints: [
+    "JavaScript is single-threaded",
+    "Concurrency is handled through callbacks, promises and async/await"
   ],
-  createdAt: // timestamp
+  flashcards: [
+    { q: "What is the call stack?", a: "The mechanism JavaScript uses to keep track of function execution." }
+  ],
+  quiz: [
+    { question: "Which of the following manages async callbacks?", choices: ["Heap", "Queue", "Call Stack", "Thread Pool"], answerIndex: 1 }
+  ]
 }
 ```
 
+---
 
-## [Link to Commented First Draft Schema](db.mjs) 
+## Link to First Draft Schema
 
-(__TODO__: create a first draft of your Schemas in db.mjs and link to it)
+A first draft of schemas will be located in:
+**`/models/*.js`**
+
+(Will be included in the repository as part of milestone submission.)
+
+---
 
 ## Wireframes
 
-(__TODO__: wireframes for all of the pages on your site; they can be as simple as photos of drawings or you can use a tool like Balsamiq, Omnigraffle, etc.)
+Planned Screens:
 
-/list/create - page for creating a new shopping list
+| Page                       | Description                     |
+| -------------------------- | ------------------------------- |
+| `/courses`                 | List of all courses             |
+| `/courses/create`          | Form to add a new course        |
+| `/lectures/upload`         | Upload audio + assign to course |
+| `/lectures/:id`            | View transcript + study pack    |
+| `/lectures/:id/study-pack` | Generate AI summary button      |
 
-![list create](documentation/list-create.png)
+### Wireframe Images
 
-/list - page for showing all shopping lists
+![Courses List](documentation/1.png)
 
-![list](documentation/list.png)
+![Create Course](documentation/2.png)
 
-/list/slug - page for showing specific shopping list
+![Upload Lecture](documentation/3.png)
 
-![list](documentation/list-slug.png)
+![Lecture Detail](documentation/4.png)
 
-## Site map
-
-(__TODO__: draw out a site map that shows how pages are related to each other)
-
-Here's a [complex example from wikipedia](https://upload.wikimedia.org/wikipedia/commons/2/20/Sitemap_google.jpg), but you can create one without the screenshots, drop shadows, etc. ... just names of pages and where they flow to.
-
-## User Stories or Use Cases
-
-(__TODO__: write out how your application will be used through [user stories](http://en.wikipedia.org/wiki/User_story#Format) and / or [use cases](https://en.wikipedia.org/wiki/Use_case))
-
-1. as non-registered user, I can register a new account with the site
-2. as a user, I can log in to the site
-3. as a user, I can create a new grocery list
-4. as a user, I can view all of the grocery lists I've created in a single list
-5. as a user, I can add items to an existing grocery list
-6. as a user, I can cross off items in an existing grocery list
-
-## Research Topics
-
-(__TODO__: the research topics that you're planning on working on along with their point values... and the total points of research topics listed)
-
-* (5 points) Integrate user authentication
-    * I'm going to be using passport for user authentication
-    * And account has been made for testing; I'll email you the password
-    * see <code>cs.nyu.edu/~jversoza/ait-final/register</code> for register page
-    * see <code>cs.nyu.edu/~jversoza/ait-final/login</code> for login page
-* (4 points) Perform client side form validation using a JavaScript library
-    * see <code>cs.nyu.edu/~jversoza/ait-final/my-form</code>
-    * if you put in a number that's greater than 5, an error message will appear in the dom
-* (5 points) vue.js
-    * used vue.js as the frontend framework; it's a challenging library to learn, so I've assigned it 5 points
-
-10 points total out of 8 required points (___TODO__: addtional points will __not__ count for extra credit)
+![Study Pack](documentation/5.png)
 
 
-## [Link to Initial Main Project File](app.mjs) 
+---
 
-(__TODO__: create a skeleton Express application with a package.json, app.mjs, views folder, etc. ... and link to your initial app.mjs)
+## Site Map
 
-## Annotations / References Used
+![Site Map](documentation/sitemap.png)
 
-(__TODO__: list any tutorials/references/etc. that you've based your code off of)
+```
+Home
+ └── Courses
+      ├── Create Course
+      └── Course Detail
+           └── Lectures
+                ├── Upload Lecture
+                └── Lecture Detail (Transcript + Summary)
+```
 
-1. [passport.js authentication docs](http://passportjs.org/docs) - (add link to source code that was based on this)
-2. [tutorial on vue.js](https://vuejs.org/v2/guide/) - (add link to source code that was based on this)
+---
 
+## User Stories
+
+1. As a **student**, I want to **upload lecture audio** so that I don’t have to write notes in real time.
+2. As a **student**, I want to **see a clean summary and bullet notes** so that I can study efficiently.
+3. As a **student**, I want to **generate flashcards and quick quiz questions** to reinforce my understanding.
+4. As a **student**, I want to **organize lectures by course** to keep my materials structured.
+5. As a **student**, I want to **revisit past summaries** when preparing for exams.
+
+---
+
+## Research Topics (planned total: 10 points)
+
+### React Frontend + Next.js (6 points)
+
+**What is it?**  
+React is a JavaScript library for building user interfaces with component-based architecture. Next.js is a React framework that provides server-side rendering, API routes, file-based routing, and optimized production builds.
+
+**Why use it?**  
+React enables reusable components and efficient state management, reducing code duplication and improving maintainability. Next.js adds powerful features like automatic code splitting, image optimization, and built-in API routes, which eliminates the need for a separate backend framework. The combination provides a fast, modern development experience and better performance through client-side navigation and server-side rendering.
+
+**Candidate modules/solutions considered:**
+- React + Vite (simpler setup, but missing SSR and routing features)
+- Vue.js (alternative framework, but less ecosystem for Next.js features)
+- Plain server-side rendering (worse UX, slower page transitions)
+
+---
+
+### shadcn/ui (1 point)
+
+**What is it?**  
+shadcn/ui is a collection of accessible, customizable React components built on Radix UI primitives and styled with TailwindCSS. Unlike traditional component libraries, you copy components into your project rather than installing them as dependencies.
+
+**Why use it?**  
+It provides professionally designed, accessible components out of the box while allowing full customization since the code lives in your project. This approach gives the benefits of a component library (consistency, accessibility) with the flexibility of custom code. The TailwindCSS styling ensures modern, responsive designs with minimal CSS.
+
+**Candidate modules/solutions considered:**
+- Material-UI / MUI (more opinionated, heavier bundle size)
+- Chakra UI (good alternative, but less customizable)
+- Custom components (more time-consuming, inconsistent design)
+
+---
+
+### Azure Speech-to-Text API (2 points)
+
+**What is it?**  
+Azure Speech-to-Text is a cloud service from Microsoft that converts spoken audio into written text. It supports real-time and batch transcription, multiple languages, and can handle long-form audio files.
+
+**Why use it?**  
+This API provides accurate transcription of lecture recordings without requiring local processing power or training custom models. It handles various audio formats, background noise, and speaker recognition. The batch transcription feature is ideal for processing longer lecture recordings that students upload.
+
+**Candidate modules/solutions considered:**
+- Google Cloud Speech-to-Text (similar features, but Azure was chosen for consistency)
+- OpenAI Whisper API (good accuracy, but more expensive for long files)
+- Local transcription libraries (less accurate, requires significant processing power)
+
+---
+
+### GPT-4o mini (OpenAI API) (1 point)
+
+**What is it?**  
+GPT-4o mini is OpenAI's efficient language model optimized for cost and speed while maintaining strong reasoning capabilities. It can generate structured text, summaries, and follow instructions for creating flashcards and quiz questions.
+
+**Why use it?**  
+This model provides excellent cost/performance balance for generating multiple study materials from transcripts. It's much cheaper than GPT-4 while still producing high-quality summaries and structured outputs. The API is well-documented and easy to integrate, making it ideal for transforming raw transcripts into useful study aids.
+
+**Candidate modules/solutions considered:**
+- GPT-4 (higher quality but 15x more expensive)
+- Claude (comparable performance, but GPT-4o mini is more cost-effective)
+- Local LLMs (requires significant infrastructure, less reliable)
+
+---
+
+**Total:** 10 points
+
+---
+
+## Initial Main Project File
+
+`app.mjs` will contain:
+
+* Express server setup
+* Logging middleware
+* Basic route placeholders
+* MongoDB connection setup
+
+---
+
+## References Used
+
+This README structure is based on the sample final project documentation:
+
+- Azure Speech SDK Docs: [https://learn.microsoft.com/azure/cognitive-services/speech-service/](https://learn.microsoft.com/azure/cognitive-services/speech-service/)
+- React Docs: [https://react.dev](https://react.dev)
+- shadcn/ui Documentation: [https://ui.shadcn.com](https://ui.shadcn.com)
+- OpenAI API Documentation: [https://platform.openai.com/docs](https://platform.openai.com/docs)
+
+---
