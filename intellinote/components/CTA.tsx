@@ -2,6 +2,7 @@
 
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
+import Link from "next/link";
 
 export function CTA() {
   return (
@@ -26,16 +27,18 @@ export function CTA() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                size="lg" 
-                variant="secondary" 
-                className="rounded-full px-8"
-              >
-                Download Now
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
+              <Link href="/dashboard">
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="rounded-full px-8"
+                >
+                  Go to Dashboard
+                </Button>
+              </Link>
+              <Button
+                size="lg"
+                variant="outline"
                 className="rounded-full px-8 bg-transparent text-primary-foreground border-primary-foreground/30 hover:bg-primary-foreground/10 hover:text-primary-foreground"
               >
                 Learn More

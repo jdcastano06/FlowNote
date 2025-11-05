@@ -24,11 +24,9 @@ export function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <SignedIn>
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Dashboard
-              </Link>
-            </SignedIn>
+            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Dashboard
+            </Link>
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>

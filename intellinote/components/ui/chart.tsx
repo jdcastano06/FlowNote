@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import * as RechartsPrimitive from "recharts@2.15.2";
+import * as RechartsPrimitive from "recharts";
 
 import { cn } from "./utils";
 
@@ -104,6 +104,8 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+// Temporarily commented out due to recharts version compatibility
+/*
 function ChartTooltipContent({
   active,
   payload,
@@ -342,12 +344,11 @@ function getPayloadConfigFromPayload(
     ? config[configLabelKey]
     : config[key as keyof typeof config];
 }
+*/
 
 export {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
+  // ChartTooltipContent, // Temporarily disabled due to recharts version compatibility
   ChartStyle,
 };

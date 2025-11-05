@@ -3,6 +3,7 @@
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
 import { FileText, Search, Star, Calendar, Plus, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export function Hero() {
   return (
@@ -46,9 +47,11 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.4 }}
           >
-            <Button size="lg" className="rounded-lg px-8">
-              Get Started Free
-            </Button>
+            <Link href="/dashboard">
+              <Button size="lg" className="rounded-lg px-8">
+                Access NoteFlow
+              </Button>
+            </Link>
           </motion.div>
         </motion.div>
 
