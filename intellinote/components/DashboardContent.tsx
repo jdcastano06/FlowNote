@@ -11,6 +11,8 @@ import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { Skeleton } from "./ui/skeleton";
+import { RichTextEditor } from "./RichTextEditor";
+import { EmojiPickerComponent } from "./EmojiPicker";
 import { 
   Plus, 
   BookOpen, 
@@ -55,6 +57,7 @@ export function DashboardContent() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [showCreateCourse, setShowCreateCourse] = useState(false);
+  const [showCreateNote, setShowCreateNote] = useState(false);
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseDescription, setNewCourseDescription] = useState("");
   const [newCourseIcon, setNewCourseIcon] = useState("📚");
@@ -112,7 +115,9 @@ export function DashboardContent() {
   };
 
   const generateSummary = (content: string): string => {
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    // Strip HTML tags to get plain text
+    const text = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const preview = sentences.slice(0, 2).join(". ");
     return preview.length > 120 ? preview.substring(0, 120) + "..." : preview + ".";
   };
@@ -172,6 +177,7 @@ export function DashboardContent() {
         setNewNoteTitle("");
         setNewNoteContent("");
         setNewNoteType("lecture");
+        setShowCreateNote(false);
         setSelectedNote(null);
       }
     } catch (error) {
@@ -386,15 +392,11 @@ export function DashboardContent() {
                         <div>
                           <label className="text-sm font-medium mb-2 block">Course Icon</label>
                           <div className="flex items-center gap-3">
-                            <div className="text-4xl">{newCourseIcon}</div>
-                            <Input
-                              placeholder="📚"
+                            <EmojiPickerComponent
                               value={newCourseIcon}
-                              onChange={(e) => setNewCourseIcon(e.target.value)}
-                              className="w-32"
-                              maxLength={2}
+                              onChange={setNewCourseIcon}
                             />
-                            <p className="text-xs text-muted-foreground">Use an emoji</p>
+                            <p className="text-xs text-muted-foreground">Click to select an emoji</p>
                           </div>
                         </div>
                         <div>
@@ -487,11 +489,10 @@ export function DashboardContent() {
 
                         <Separator />
 
-                        <div className="prose prose-neutral dark:prose-invert max-w-none">
-                          <p className="text-base leading-relaxed whitespace-pre-wrap">
-                            {selectedNote.content}
-                          </p>
-                        </div>
+                        <div 
+                          className="prose prose-neutral dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedNote.content }}
+                        />
                       </div>
                     </div>
                   ) : (
@@ -531,6 +532,7 @@ export function DashboardContent() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                setShowCreateNote(true);
                                 setNewNoteTitle("");
                                 setNewNoteContent("");
                                 setNewNoteType("lecture");
@@ -549,7 +551,7 @@ export function DashboardContent() {
                       <div className="px-8 md:px-16 py-8">
                         <div className="max-w-7xl mx-auto">
                           {/* Create Note Section */}
-                          {(newNoteTitle || newNoteContent) && (
+                          {showCreateNote && (
                             <Card className="mb-8 border-2 border-primary/20">
                               <CardHeader className="pb-4">
                                 <div className="flex items-center justify-between">
@@ -558,6 +560,7 @@ export function DashboardContent() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => {
+                                      setShowCreateNote(false);
                                       setNewNoteTitle("");
                                       setNewNoteContent("");
                                       setNewNoteType("lecture");
@@ -594,11 +597,11 @@ export function DashboardContent() {
                                 </div>
                                 <div>
                                   <label className="text-sm font-medium mb-2 block">Content</label>
-                                  <Textarea
-                                    placeholder="Write your notes here..."
-                                    value={newNoteContent}
-                                    onChange={(e) => setNewNoteContent(e.target.value)}
-                                    rows={6}
+                                  <RichTextEditor
+                                    content={newNoteContent}
+                                    onChange={setNewNoteContent}
+                                    placeholder="Start writing your notes... Use the toolbar to format text, add lists, links, and more."
+                                    minHeight="300px"
                                   />
                                 </div>
                                 <Button 
@@ -641,6 +644,7 @@ export function DashboardContent() {
                               {notes.length === 0 && (
                                 <Button
                                   onClick={() => {
+                                    setShowCreateNote(true);
                                     setNewNoteTitle("");
                                     setNewNoteContent("");
                                     setNewNoteType("lecture");
