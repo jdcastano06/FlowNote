@@ -10,6 +10,7 @@ export interface ICourse extends Document {
   userId: string; // Clerk user ID
   title: string;
   description?: string;
+  icon?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,10 @@ const courseSchema = new Schema<ICourse>({
     type: String,
     trim: true,
     default: ''
+  },
+  icon: {
+    type: String,
+    default: '📚'
   }
 }, {
   timestamps: true

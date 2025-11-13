@@ -9,12 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Plus, BookOpen, FileText, Trash2, Search, X, Loader2 } from "lucide-react";
+import { CourseHeader } from "./CourseHeader";
+import { NotesGrid } from "./NotesGrid";
+import { NoteEditor } from "./NoteEditor";
 
 interface Course {
   _id: string;
   userId: string;
   title: string;
   description: string;
+  icon?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +29,10 @@ interface Note {
   userId: string;
   title: string;
   content: string;
+  type?: string;
+  tags?: string[];
+  status?: string;
+  summary?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,11 +45,14 @@ export function DashboardContent() {
   const [showCreateCourse, setShowCreateCourse] = useState(false);
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseDescription, setNewCourseDescription] = useState("");
-  const [newNoteTitle, setNewNoteTitle] = useState("");
-  const [newNoteContent, setNewNoteContent] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [notesSearchQuery, setNotesSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [showNoteEditor, setShowNoteEditor] = useState(false);
 
   // Fetch courses when user signs in
   useEffect(() => {
@@ -118,29 +129,63 @@ export function DashboardContent() {
     }
   };
 
-  const handleCreateNote = async () => {
-    if (!selectedCourse || !newNoteTitle.trim() || !newNoteContent.trim()) return;
+  const handleSaveNote = async (noteData: {
+    _id?: string;
+    title: string;
+    content: string;
+    type?: string;
+    tags?: string[];
+    status?: string;
+    summary?: string;
+  }) => {
+    if (!selectedCourse) return;
 
     try {
       setLoading(true);
-      const response = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId: selectedCourse._id,
-          title: newNoteTitle,
-          content: newNoteContent,
-        }),
-      });
+      
+      if (noteData._id) {
+        // Update existing note
+        const response = await fetch(`/api/notes/${noteData._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: noteData.title,
+            content: noteData.content,
+            type: noteData.type,
+            tags: noteData.tags,
+            status: noteData.status,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        setNotes([data.note, ...notes]);
-        setNewNoteTitle("");
-        setNewNoteContent("");
+        if (response.ok) {
+          const data = await response.json();
+          setNotes(notes.map((n) => (n._id === noteData._id ? data.note : n)));
+        }
+      } else {
+        // Create new note
+        const response = await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId: selectedCourse._id,
+            title: noteData.title,
+            content: noteData.content,
+            type: noteData.type,
+            tags: noteData.tags,
+            status: noteData.status,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setNotes([data.note, ...notes]);
+        }
       }
+      
+      setShowNoteEditor(false);
+      setSelectedNote(null);
     } catch (error) {
-      console.error("Error creating note:", error);
+      console.error("Error saving note:", error);
     } finally {
       setLoading(false);
     }
@@ -190,11 +235,16 @@ export function DashboardContent() {
     (course.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredNotes = notes.filter(
-    (note) =>
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredNotes = notes.filter((note) => {
+    const matchesSearch =
+      note.title.toLowerCase().includes(notesSearchQuery.toLowerCase()) ||
+      note.content.toLowerCase().includes(notesSearchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || note.status === statusFilter;
+    const matchesType = typeFilter === "all" || note.type === typeFilter;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
   if (!isLoaded) {
     return null;
@@ -380,129 +430,62 @@ export function DashboardContent() {
                   </div>
                 </div>
               ) : selectedCourse ? (
-                <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-                  <div className="max-w-4xl mx-auto">
-                    {/* Course Header */}
-                    <div className="mb-8 pb-6 border-b border-border">
-                      <div className="flex items-start justify-between gap-4 mb-2">
-                        <div className="flex-1">
-                          <h2 className="text-2xl font-semibold mb-2">{selectedCourse.title}</h2>
-                          {selectedCourse.description && (
-                            <p className="text-sm text-muted-foreground">
-                              {selectedCourse.description}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteCourse(selectedCourse._id)}
-                          className="shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-4">
-                        {notes.length}{" "}
-                        {notes.length === 1 ? "note" : "notes"}
-                      </p>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
+                    {/* Notion-Style Course Header */}
+                    <CourseHeader
+                      course={selectedCourse}
+                      notesCount={notes.length}
+                      onDelete={() => handleDeleteCourse(selectedCourse._id)}
+                      searchQuery={notesSearchQuery}
+                      onSearchChange={setNotesSearchQuery}
+                      statusFilter={statusFilter}
+                      onStatusFilterChange={setStatusFilter}
+                      typeFilter={typeFilter}
+                      onTypeFilterChange={setTypeFilter}
+                    />
+
+                    {/* Create Note Button */}
+                    <div className="flex justify-center">
+                      <Button
+                        onClick={() => {
+                          setSelectedNote(null);
+                          setShowNoteEditor(true);
+                        }}
+                        size="lg"
+                        className="rounded-xl shadow-md hover:shadow-lg transition-shadow"
+                      >
+                        <Plus className="w-5 h-5 mr-2" />
+                        Create Note
+                      </Button>
                     </div>
 
-                    {/* Create Note Form */}
-                    <Card className="mb-8">
-                      <CardHeader className="pb-4">
-                        <CardTitle className="text-lg">Add Note</CardTitle>
-                        <CardDescription>Create a new note for this course</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Note Title</label>
-                          <Input
-                            placeholder="e.g., Week 3 - Event Loops"
-                            value={newNoteTitle}
-                            onChange={(e) => setNewNoteTitle(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Content</label>
-                          <Textarea
-                            placeholder="Write your notes here..."
-                            value={newNoteContent}
-                            onChange={(e) => setNewNoteContent(e.target.value)}
-                            rows={6}
-                          />
-                        </div>
-                        <Button 
-                          onClick={handleCreateNote} 
-                          className="w-full sm:w-auto"
-                          disabled={loading}
-                        >
-                          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Add Note
-                        </Button>
-                      </CardContent>
-                    </Card>
-
-                    {/* Notes List */}
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">
-                        Notes ({filteredNotes.length})
-                      </h3>
-                      {notesLoading ? (
-                        <Card>
-                          <CardContent className="py-12 text-center">
-                            <Loader2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-spin" />
-                            <p className="text-sm text-muted-foreground">Loading notes...</p>
-                          </CardContent>
-                        </Card>
-                      ) : filteredNotes.length === 0 ? (
-                        <Card>
-                          <CardContent className="py-12 text-center">
-                            <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                            <p className="text-sm text-muted-foreground">
-                              {notes.length === 0
-                                ? "No notes yet. Create your first note above."
-                                : "No notes match your search."}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <div className="space-y-4">
-                          {filteredNotes.map((note) => (
-                            <Card key={note._id}>
-                              <CardHeader className="pb-3">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1">
-                                    <CardTitle className="text-base mb-1">{note.title}</CardTitle>
-                                    <CardDescription className="text-xs">
-                                      {new Date(note.createdAt).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })}
-                                    </CardDescription>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 shrink-0"
-                                    onClick={() => handleDeleteNote(note._id)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                  {note.content}
-                                </p>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {/* Notes Grid */}
+                    <NotesGrid
+                      notes={filteredNotes}
+                      loading={notesLoading}
+                      onNoteClick={(note) => {
+                        setSelectedNote(note as Note);
+                        setShowNoteEditor(true);
+                      }}
+                      onCreateNote={() => {
+                        setSelectedNote(null);
+                        setShowNoteEditor(true);
+                      }}
+                    />
                   </div>
+
+                  {/* Note Editor Modal */}
+                  <NoteEditor
+                    note={selectedNote}
+                    open={showNoteEditor}
+                    onClose={() => {
+                      setShowNoteEditor(false);
+                      setSelectedNote(null);
+                    }}
+                    onSave={handleSaveNote}
+                    onDelete={handleDeleteNote}
+                  />
                 </div>
               ) : (
                 <div className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">

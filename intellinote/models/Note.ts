@@ -11,6 +11,10 @@ export interface INote extends Document {
   userId: string; // Clerk user ID
   title: string;
   content: string;
+  type?: string;
+  tags?: string[];
+  status?: string;
+  summary?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +39,24 @@ const noteSchema = new Schema<INote>({
   content: {
     type: String,
     required: true
+  },
+  type: {
+    type: String,
+    default: 'Note',
+    enum: ['Note', 'Lecture', 'Reading', 'Assignment', 'Lab', 'Exam']
+  },
+  tags: {
+    type: [String],
+    default: []
+  },
+  status: {
+    type: String,
+    default: 'active',
+    enum: ['active', 'completed', 'archived']
+  },
+  summary: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
