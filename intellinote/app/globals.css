@@ -267,6 +267,18 @@ html {
   color: #0052a3;
 }
 
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1em 0;
+  display: block;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid #68cef8;
+}
+
 /* Prose styles for viewing notes */
 .prose {
   max-width: 100%;
@@ -356,4 +368,12 @@ html {
 
 .prose a:hover {
   color: #0052a3;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1em 0;
+  display: block;
 }
