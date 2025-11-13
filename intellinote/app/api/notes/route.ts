@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { courseId, title, content, type, tags, status, summary } = body;
+    const { courseId, title, content, type, summary } = body;
 
     if (!courseId || !title || !content) {
       return NextResponse.json(
@@ -62,10 +62,8 @@ export async function POST(request: Request) {
       userId,
       title,
       content,
-      type: type || 'Note',
-      tags: tags || [],
-      status: status || 'active',
-      summary: summary || '',
+      type: type || "lecture",
+      summary: summary || "",
     });
 
     return NextResponse.json({ note }, { status: 201 });

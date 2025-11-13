@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { title, description } = body;
+    const { title, description, icon } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       userId,
       title,
       description: description || "",
+      icon: icon || "📚",
     });
 
     return NextResponse.json({ course }, { status: 201 });

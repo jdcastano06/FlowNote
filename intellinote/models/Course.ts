@@ -33,6 +33,7 @@ const courseSchema = new Schema<ICourse>({
   },
   icon: {
     type: String,
+    trim: true,
     default: '📚'
   }
 }, {
