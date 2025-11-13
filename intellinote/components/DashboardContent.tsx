@@ -127,24 +127,32 @@ export function DashboardContent() {
 
     try {
       setLoading(true);
+      
+      const courseData = {
+        title: newCourseTitle,
+        description: newCourseDescription,
+        icon: newCourseIcon,
+      };
+
+      console.log("Sending course data:", courseData);
+
       const response = await fetch("/api/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newCourseTitle,
-          description: newCourseDescription,
-          icon: newCourseIcon,
-        }),
+        body: JSON.stringify(courseData),
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log("Course created successfully:", data.course);
         setCourses([data.course, ...courses]);
         setNewCourseTitle("");
         setNewCourseDescription("");
         setNewCourseIcon("📚");
         setShowCreateCourse(false);
         setSelectedCourse(data.course);
+      } else {
+        console.error("Failed to create course:", await response.text());
       }
     } catch (error) {
       console.error("Error creating course:", error);

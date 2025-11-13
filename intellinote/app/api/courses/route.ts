@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { title, description, icon } = body;
 
+    console.log("Creating course with data:", { title, description, icon });
+
     if (!title) {
       return NextResponse.json(
         { error: "Title is required" },
@@ -47,12 +49,18 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    const course = await Course.create({
+    const courseData = {
       userId,
       title,
       description: description || "",
       icon: icon || "📚",
-    });
+    };
+
+    console.log("Course data being saved:", courseData);
+
+    const course = await Course.create(courseData);
+
+    console.log("Course created:", course);
 
     return NextResponse.json({ course }, { status: 201 });
   } catch (error) {

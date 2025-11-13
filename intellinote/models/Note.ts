@@ -52,6 +52,11 @@ const noteSchema = new Schema<INote>({
   timestamps: true
 });
 
+// Clear existing model in development to pick up schema changes
+if (process.env.NODE_ENV === 'development' && mongoose.models.Note) {
+  delete mongoose.models.Note;
+}
+
 const Note: Model<INote> = mongoose.models.Note || mongoose.model<INote>('Note', noteSchema);
 
 export default Note;
