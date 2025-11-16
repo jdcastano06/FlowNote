@@ -5,28 +5,38 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { SignIn } from "@clerk/nextjs";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { Skeleton } from "./ui/skeleton";
-import { RichTextEditor } from "./RichTextEditor";
-import { EmojiPickerComponent } from "./EmojiPicker";
+import { AudioTranscriptionUpload } from "./AudioTranscriptionUpload";
+import { NewLessonDropdown } from "./NewLessonDropdown";
+import { LessonCreationModal } from "./LessonCreationModal";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { 
-  Plus, 
-  BookOpen, 
-  FileText, 
-  Trash2, 
   Search, 
   X, 
   Loader2,
   Clock,
-  Tag,
-  Star,
-  Edit3,
-  Calendar
+  FileText,
+  ChevronRight,
+  ChevronDown,
+  Mic,
+  Upload,
+  Plus,
+  Settings,
+  Home,
+  ChevronUp,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "./ui/sheet";
 
 interface Course {
   _id: string;
@@ -38,51 +48,44 @@ interface Course {
   updatedAt: string;
 }
 
-interface Note {
+interface Lesson {
   _id: string;
-  courseId: string;
-  userId: string;
   title: string;
-  content: string;
-  type?: "lecture" | "reading" | "assignment" | "lab" | "other";
-  summary?: string;
+  courseId: {
+    _id: string;
+    title: string;
+    icon?: string;
+  } | string;
   createdAt: string;
-  updatedAt: string;
+  status?: string;
+  content?: string; // AI summary for audio, or manual content
+  transcription?: string; // Raw transcription from audio
 }
+
+type ViewState = "dashboard" | "lesson-detail" | "upload-audio";
 
 export function DashboardContent() {
   const { isSignedIn, isLoaded } = useUser();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [showCreateCourse, setShowCreateCourse] = useState(false);
-  const [showCreateNote, setShowCreateNote] = useState(false);
-  const [newCourseTitle, setNewCourseTitle] = useState("");
-  const [newCourseDescription, setNewCourseDescription] = useState("");
-  const [newCourseIcon, setNewCourseIcon] = useState("📚");
-  const [newNoteTitle, setNewNoteTitle] = useState("");
-  const [newNoteContent, setNewNoteContent] = useState("");
-  const [newNoteType, setNewNoteType] = useState<"lecture" | "reading" | "assignment" | "lab" | "other">("lecture");
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [notesLoading, setNotesLoading] = useState(false);
+  const [currentView, setCurrentView] = useState<ViewState>("dashboard");
+  const [showLessonModal, setShowLessonModal] = useState(false);
+  const [lessonModalMode, setLessonModalMode] = useState<"manual" | "audio" | null>(null);
+  const [showTranscription, setShowTranscription] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Fetch courses when user signs in
+  // Fetch data when user signs in
   useEffect(() => {
     if (isSignedIn) {
       fetchCourses();
+      fetchLessons();
     }
   }, [isSignedIn]);
-
-  // Fetch notes when a course is selected
-  useEffect(() => {
-    if (selectedCourse && isSignedIn) {
-      fetchNotes(selectedCourse._id);
-    } else {
-      setNotes([]);
-    }
-  }, [selectedCourse, isSignedIn]);
 
   const fetchCourses = async () => {
     try {
@@ -99,660 +102,619 @@ export function DashboardContent() {
     }
   };
 
-  const fetchNotes = async (courseId: string) => {
+  const fetchLessons = async () => {
     try {
-      setNotesLoading(true);
-      const response = await fetch(`/api/notes?courseId=${courseId}`);
+      const response = await fetch("/api/lectures?limit=10");
       if (response.ok) {
         const data = await response.json();
-        setNotes(data.notes || []);
+        console.log("Fetched lessons:", data); // Debug log
+        setLessons(data.lectures || []);
+      } else {
+        console.error("Failed to fetch lessons:", response.status);
       }
     } catch (error) {
-      console.error("Error fetching notes:", error);
-    } finally {
-      setNotesLoading(false);
+      console.error("Error fetching lessons:", error);
     }
   };
 
-  const generateSummary = (content: string): string => {
-    // Strip HTML tags to get plain text
-    const text = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const preview = sentences.slice(0, 2).join(". ");
-    return preview.length > 120 ? preview.substring(0, 120) + "..." : preview + ".";
+  const handleLessonClick = (lesson: Lesson) => {
+    setSelectedLesson(lesson);
+    setCurrentView("lesson-detail");
+    setShowTranscription(false); // Reset transcription toggle when switching lessons
+    setMobileMenuOpen(false); // Close mobile menu when navigating
   };
 
-  const handleCreateCourse = async () => {
-    if (!newCourseTitle.trim()) return;
+  const handleNewLessonActionWithClose = (action: "record" | "upload" | "manual") => {
+    handleNewLessonAction(action);
+    setMobileMenuOpen(false);
+  };
 
+  const handleDashboardClick = () => {
+    setCurrentView("dashboard");
+    setMobileMenuOpen(false);
+  };
+
+  // Sidebar content component (reusable for desktop and mobile)
+  const SidebarContent = ({ collapsed = false }: { collapsed?: boolean }) => (
+    <>
+      {/* Logo */}
+      <div className={`p-4 md:p-6 border-b border-border ${collapsed ? 'flex justify-center' : ''}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-background" />
+          </div>
+          {!collapsed && <span className="text-lg font-semibold">NoteFlow</span>}
+        </div>
+      </div>
+
+      {/* New Lesson Button */}
+      <div className={`p-4 md:p-6 ${collapsed ? 'flex justify-center' : ''}`}>
+        <NewLessonDropdown
+          onRecordAudio={() => handleNewLessonActionWithClose("record")}
+          onUploadFile={() => handleNewLessonActionWithClose("upload")}
+          onManualNote={() => handleNewLessonActionWithClose("manual")}
+          collapsed={collapsed}
+        />
+      </div>
+
+      {/* All Lessons Button */}
+      <div className={`px-4 md:px-6 pb-4 md:pb-6 ${collapsed ? 'flex justify-center' : ''}`}>
+        <Button 
+          variant={currentView === "dashboard" ? "default" : "ghost"}
+          className={`w-full ${collapsed ? 'w-10 p-0 justify-center' : 'justify-start'}`}
+          onClick={handleDashboardClick}
+          title={collapsed ? "All Lessons" : undefined}
+        >
+          <Home className="w-4 h-4" />
+          {!collapsed && <span className="ml-2">All Lessons</span>}
+        </Button>
+      </div>
+
+      {/* Courses Section */}
+      <div className={`flex-1 pb-4 md:pb-6 overflow-hidden flex flex-col min-h-0 ${collapsed ? 'px-2' : 'px-4 md:px-6'}`}>
+        {!collapsed && (
+          <div className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">
+            Courses
+          </div>
+        )}
+        
+        <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
+          {courses.map((course) => {
+            const isExpanded = expandedCourses.has(course._id);
+            const courseLessons = lessons.filter(lesson => {
+              if (!lesson.courseId) return false;
+              const courseIdMatch = typeof lesson.courseId === "object" 
+                ? lesson.courseId._id === course._id
+                : lesson.courseId === course._id;
+              return courseIdMatch;
+            });
+
+            if (collapsed) {
+              return (
+                <Button
+                  key={course._id}
+                  variant="ghost"
+                  size="icon"
+                  className="w-10 h-10"
+                  onClick={() => {
+                    // On collapsed, expand sidebar and show course
+                    setSidebarCollapsed(false);
+                    toggleCourseExpansion(course._id);
+                  }}
+                  title={course.title}
+                >
+                  <span className="text-lg">{course.icon || "📚"}</span>
+                </Button>
+              );
+            }
+
+            return (
+              <div key={course._id}>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-between text-left h-auto p-2"
+                  onClick={() => toggleCourseExpansion(course._id)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 shrink-0" />
+                    )}
+                    {course.icon && <span className="text-sm shrink-0">{course.icon}</span>}
+                    <span className="text-sm font-medium truncate">{course.title}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                    {courseLessons.length}
+                  </span>
+                </Button>
+                
+                {isExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {courseLessons.length > 0 ? (
+                      courseLessons.map((lesson) => (
+                        <Button
+                          key={lesson._id}
+                          variant="ghost"
+                          className="w-full justify-start text-left h-auto p-2 text-sm text-muted-foreground hover:text-foreground truncate"
+                          onClick={() => handleLessonClick(lesson)}
+                          title={lesson.title}
+                        >
+                          {lesson.title}
+                        </Button>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">
+                        No lessons yet
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div className={`p-4 md:p-6 border-t border-border ${collapsed ? 'flex justify-center' : ''}`}>
+        <Button 
+          variant="ghost" 
+          className={`w-full ${collapsed ? 'w-10 p-0 justify-center' : 'justify-start'}`}
+          title={collapsed ? "Settings" : undefined}
+        >
+          <Settings className="w-4 h-4" />
+          {!collapsed && <span className="ml-2">Settings</span>}
+        </Button>
+      </div>
+
+      {/* Collapse/Expand Button (Desktop only) */}
+      {!collapsed && (
+        <div className="hidden md:block p-2 border-t border-border">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-full"
+            onClick={() => setSidebarCollapsed(true)}
+            title="Collapse sidebar"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+    </>
+  );
+
+  const toggleCourseExpansion = (courseId: string) => {
+    const newExpanded = new Set(expandedCourses);
+    if (newExpanded.has(courseId)) {
+      newExpanded.delete(courseId);
+      } else {
+      newExpanded.add(courseId);
+    }
+    setExpandedCourses(newExpanded);
+  };
+
+  const handleNewLessonAction = (action: "record" | "upload" | "manual") => {
+    if (action === "upload") {
+      setCurrentView("upload-audio");
+    } else if (action === "manual") {
+      setLessonModalMode("manual");
+      setShowLessonModal(true);
+    } else if (action === "record") {
+      // TODO: Implement recording functionality
+      console.log("Record audio functionality to be implemented");
+    }
+  };
+
+  const handleCreateLesson = async (data: {
+    courseName: string;
+    courseEmoji: string;
+    lessonTitle: string;
+    content: string;
+  }) => {
     try {
-      setLoading(true);
-      
-      const courseData = {
-        title: newCourseTitle,
-        description: newCourseDescription,
-        icon: newCourseIcon,
-      };
+      // Validate input data
+      if (!data.courseName || !data.courseName.trim()) {
+        throw new Error("Course name is required");
+      }
+      if (!data.lessonTitle || !data.lessonTitle.trim()) {
+        throw new Error("Lesson title is required");
+      }
+      if (!data.content || !data.content.trim()) {
+        throw new Error("Content is required");
+      }
 
-      console.log("Sending course data:", courseData);
+      const courseName = data.courseName.trim();
+      const lessonTitle = data.lessonTitle.trim();
+      const content = data.content.trim();
 
-      const response = await fetch("/api/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(courseData),
+      console.log("handleCreateLesson called with validated data:", {
+        courseName,
+        courseEmoji: data.courseEmoji,
+        lessonTitle,
+        contentLength: content.length
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Course created successfully:", data.course);
-        setCourses([data.course, ...courses]);
-        setNewCourseTitle("");
-        setNewCourseDescription("");
-        setNewCourseIcon("📚");
-        setShowCreateCourse(false);
-        setSelectedCourse(data.course);
+      // Create or find course - ensure we use the courseName for the course title
+      let courseId = "";
+      const existingCourse = courses.find(c => 
+        c.title.toLowerCase().trim() === courseName.toLowerCase()
+      );
+
+      if (existingCourse) {
+        courseId = existingCourse._id;
+        console.log("Using existing course - Course title:", existingCourse.title, "Course ID:", courseId);
       } else {
-        console.error("Failed to create course:", await response.text());
+        console.log("Creating new course - Course title:", courseName, "Icon:", data.courseEmoji);
+        const courseResponse = await fetch("/api/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: courseName, // Course title comes from courseName field
+            description: "",
+            icon: data.courseEmoji || "📚",
+          }),
+        });
+
+        if (!courseResponse.ok) {
+          const errorData = await courseResponse.json();
+          console.error("Failed to create course:", errorData);
+          throw new Error(`Failed to create course: ${errorData.error || "Unknown error"}`);
+        }
+
+        const courseData = await courseResponse.json();
+        courseId = courseData.course._id;
+        console.log("Course created successfully - Course title:", courseData.course.title, "Course ID:", courseId);
+        setCourses(prev => [courseData.course, ...prev]);
       }
-    } catch (error) {
-      console.error("Error creating course:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleCreateNote = async () => {
-    if (!selectedCourse || !newNoteTitle.trim() || !newNoteContent.trim()) return;
+      if (!courseId) {
+        throw new Error("Failed to get or create course ID");
+      }
 
-    try {
-      setLoading(true);
-      const summary = generateSummary(newNoteContent);
-      const response = await fetch("/api/notes", {
+      // Create lecture - ensure we use lessonTitle for the lecture title
+      console.log("Creating lecture - Lecture title:", lessonTitle, "Course ID:", courseId);
+      const lectureResponse = await fetch("/api/lectures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          courseId: selectedCourse._id,
-          title: newNoteTitle,
-          content: newNoteContent,
-          type: newNoteType,
-          summary: summary,
+          courseId,
+          title: lessonTitle, // Lecture title comes from lessonTitle field
+          audioUrl: "",
+          content: content, // Content goes directly to lecture.content
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setNotes([data.note, ...notes]);
-        setNewNoteTitle("");
-        setNewNoteContent("");
-        setNewNoteType("lecture");
-        setShowCreateNote(false);
-        setSelectedNote(null);
+      if (!lectureResponse.ok) {
+        const errorData = await lectureResponse.json();
+        console.error("Failed to create lecture:", errorData);
+        throw new Error(`Failed to create lecture: ${errorData.error || errorData.details || "Unknown error"}`);
       }
-    } catch (error) {
-      console.error("Error creating note:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm("Are you sure you want to delete this course? All notes will be deleted.")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/courses/${courseId}`, {
-        method: "DELETE",
+      const lectureData = await lectureResponse.json();
+      console.log("Lecture created successfully:", {
+        lectureTitle: lectureData.lecture?.title,
+        courseTitle: typeof lectureData.lecture?.courseId === 'object' ? lectureData.lecture.courseId.title : 'N/A',
+        noteContentLength: lectureData.note?.content?.length || 0
       });
-
-      if (response.ok) {
-        setCourses(courses.filter((course) => course._id !== courseId));
-        if (selectedCourse?._id === courseId) {
-          setSelectedCourse(null);
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting course:", error);
+      
+      fetchLessons();
+      fetchCourses();
+    } catch (error: any) {
+      console.error("Error creating lesson:", error);
+      throw error;
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm("Are you sure you want to delete this note?")) {
-      return;
+  const getBreadcrumbs = () => {
+    const breadcrumbs = [];
+    
+    if (currentView === "dashboard") {
+      breadcrumbs.push({ label: "Dashboard" });
+    } else if (currentView === "lesson-detail" && selectedLesson) {
+      breadcrumbs.push(
+        { label: "Dashboard", onClick: () => setCurrentView("dashboard") },
+        { label: selectedLesson.title }
+      );
+    } else if (currentView === "upload-audio") {
+      breadcrumbs.push(
+        { label: "Dashboard", onClick: () => setCurrentView("dashboard") },
+        { label: "Upload Audio" }
+      );
     }
-
-    try {
-      const response = await fetch(`/api/notes/${noteId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setNotes(notes.filter((note) => note._id !== noteId));
-      }
-    } catch (error) {
-      console.error("Error deleting note:", error);
-    }
+    
+    return breadcrumbs;
   };
 
-  const getBadgeColor = (type: string) => {
-    const colors = {
-      lecture: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
-      reading: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20",
-      assignment: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20",
-      lab: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20",
-      other: "bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20",
-    };
-    return colors[type as keyof typeof colors] || colors.other;
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    
+    return date.toLocaleDateString();
   };
-
-  const filteredCourses = courses.filter((course) =>
-    course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (course.description || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredNotes = notes.filter(
-    (note) =>
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (!isLoaded) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/20 to-background relative">
-      {/* Blurred background overlay when not authenticated */}
+    <div className="h-screen bg-background flex">
+      {/* Desktop Sidebar */}
+      <aside className={`hidden md:flex bg-background border-r border-border flex-col transition-all duration-300 ${
+        sidebarCollapsed ? 'w-16' : 'w-72'
+      }`}>
+        {sidebarCollapsed ? (
+          <>
+            <SidebarContent collapsed={true} />
+            <div className="p-2 border-t border-border">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-full"
+                onClick={() => setSidebarCollapsed(false)}
+                title="Expand sidebar"
+              >
+                <PanelLeftOpen className="w-4 h-4" />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <SidebarContent collapsed={false} />
+        )}
+      </aside>
+
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden w-full md:w-auto">
+        {/* Auth Overlay */}
       <AnimatePresence>
         {!isSignedIn && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 backdrop-blur-sm bg-background/60"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Clerk SignIn Modal */}
-      <AnimatePresence>
-        {!isSignedIn && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
           >
               <SignIn
                 routing="virtual"
                 afterSignInUrl={typeof window !== "undefined" ? window.location.href : "/"}
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    card: "shadow-none border-0 bg-transparent",
-                    cardBox: "w-full",
-                  },
-                }}
               />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 ${!isSignedIn ? "blur-sm pointer-events-none" : ""}`}>
-        {/* Main content area */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex flex-col lg:flex-row min-h-[calc(100vh-200px)] bg-card rounded-xl border border-border overflow-hidden"
-        >
-            {/* Sidebar */}
-            <div className="w-full lg:w-64 bg-muted/20 border-b lg:border-b-0 lg:border-r border-border p-4 sm:p-6 flex-shrink-0">
-              {/* Search */}
-              <div className="mb-6">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search courses..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-9 bg-background"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Create Course Button */}
-              <div className="mb-6">
-                <Button
-                  onClick={() => setShowCreateCourse(true)}
-                  className="w-full"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Course
+        {isSignedIn && (
+          <>
+            {/* Mobile Header with Menu Button */}
+            <div className="md:hidden flex items-center justify-between p-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Menu className="w-5 h-5" />
                 </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-72 p-0">
+                    <div className="h-full flex flex-col">
+                      <SidebarContent collapsed={false} />
               </div>
-
-              {/* Courses List */}
-              <div>
-                <div className="text-xs text-muted-foreground px-3 mb-3 font-medium">
-                  Courses ({courses.length})
-                </div>
-                {courses.length === 0 ? (
-                  <div className="px-3 py-8 text-center">
-                    {loading ? (
-                      <Loader2 className="w-8 h-8 mx-auto mb-3 text-muted-foreground animate-spin" />
-                    ) : (
-                      <>
-                        <BookOpen className="w-8 h-8 mx-auto mb-3 text-muted-foreground opacity-50" />
-                        <p className="text-xs text-muted-foreground">No courses yet</p>
-                      </>
-                    )}
+                  </SheetContent>
+                </Sheet>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-foreground rounded-lg flex items-center justify-center">
+                    <FileText className="w-3 h-3 text-background" />
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    {filteredCourses.map((course) => (
-                      <button
-                        key={course._id}
-                        onClick={() => setSelectedCourse(course)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
-                          selectedCourse?._id === course._id
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-accent/50"
-                        }`}
-                      >
-                        {course.icon ? (
-                          <span className="text-lg shrink-0">{course.icon}</span>
-                        ) : (
-                          <BookOpen className="w-4 h-4 shrink-0" />
-                        )}
-                        <span className="flex-1 truncate">{course.title}</span>
-                      </button>
-                    ))}
+                  <span className="font-semibold">NoteFlow</span>
                   </div>
-                )}
               </div>
             </div>
 
-            {/* Main content */}
-            <div className="flex-1 flex flex-col min-h-0">
-              {showCreateCourse ? (
-                <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-                  <div className="max-w-2xl mx-auto">
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-semibold mb-2">Create New Course</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Add a new course to organize your notes
+            {/* Breadcrumbs */}
+            <div className="p-4 md:p-8 pb-2 md:pb-4">
+              <Breadcrumbs items={getBreadcrumbs()} />
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto">
+              {currentView === "dashboard" && (
+                <div className="p-4 md:p-8 pt-2 md:pt-4 space-y-6 md:space-y-8">
+                  {/* Header */}
+                  <div className="space-y-2">
+                    <h1 className="text-xl md:text-2xl font-semibold">Lessons</h1>
+                    <p className="text-sm md:text-base text-muted-foreground">
+                      Record or upload lectures to automatically generate organized notes
                       </p>
                     </div>
 
-                    <Card>
-                      <CardContent className="p-6 space-y-6">
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Course Icon</label>
-                          <div className="flex items-center gap-3">
-                            <EmojiPickerComponent
-                              value={newCourseIcon}
-                              onChange={setNewCourseIcon}
-                            />
-                            <p className="text-xs text-muted-foreground">Click to select an emoji</p>
-                          </div>
+                  {/* Main Action Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    <Card 
+                      className="border-2 border-border hover:border-foreground transition-all duration-200 group cursor-pointer hover:bg-foreground hover:text-background"
+                      onClick={() => handleNewLessonAction("record")}
+                    >
+                      <CardContent className="p-8 md:p-16 text-center">
+                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-foreground/5 group-hover:bg-background/10 flex items-center justify-center mx-auto mb-4 md:mb-6">
+                          <Mic className="w-8 h-8 md:w-10 md:h-10 text-foreground/60 group-hover:text-background/80" />
                         </div>
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Course Title</label>
-                          <Input
-                            placeholder="e.g., CS-UH 2012 - Software Engineering"
-                            value={newCourseTitle}
-                            onChange={(e) => setNewCourseTitle(e.target.value)}
-                            className="w-full"
-                          />
+                        <h3 className="text-base md:text-lg font-medium mb-2">Record Audio</h3>
+                        <p className="text-xs md:text-sm text-muted-foreground group-hover:text-background/70">
+                          Use your microphone to record a lecture
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card 
+                      className="border-2 border-border hover:border-foreground transition-all duration-200 group cursor-pointer hover:bg-foreground hover:text-background"
+                      onClick={() => handleNewLessonAction("upload")}
+                    >
+                      <CardContent className="p-8 md:p-16 text-center">
+                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-foreground/5 group-hover:bg-background/10 flex items-center justify-center mx-auto mb-4 md:mb-6">
+                          <Upload className="w-8 h-8 md:w-10 md:h-10 text-foreground/60 group-hover:text-background/80" />
                         </div>
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">
-                            Description (Optional)
-                          </label>
-                          <Textarea
-                            placeholder="Add a description for this course..."
-                            value={newCourseDescription}
-                            onChange={(e) => setNewCourseDescription(e.target.value)}
-                            rows={4}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="flex gap-3 pt-2">
-                          <Button 
-                            onClick={handleCreateCourse} 
-                            className="flex-1"
-                            disabled={loading}
-                          >
-                            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Create Course
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowCreateCourse(false);
-                              setNewCourseTitle("");
-                              setNewCourseDescription("");
-                              setNewCourseIcon("📚");
-                            }}
-                            className="flex-1"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
+                        <h3 className="text-base md:text-lg font-medium mb-2">Upload File</h3>
+                        <p className="text-xs md:text-sm text-muted-foreground group-hover:text-background/70">
+                          Choose an audio file from your device
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
-                </div>
-              ) : selectedCourse ? (
-                <div className="flex-1 overflow-y-auto bg-background">
-                  {selectedNote ? (
-                    /* Note Editor View */
-                    <div className="min-h-full p-8 md:p-12 max-w-4xl mx-auto">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedNote(null)}
-                        className="mb-8"
-                      >
-                        ← Back to {selectedCourse.title}
-                      </Button>
-                      
-                      <div className="space-y-6">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 space-y-4">
-                            <Badge className={`${getBadgeColor(selectedNote.type || "other")} border`}>
-                              {selectedNote.type || "other"}
-                            </Badge>
-                            <h1 className="text-4xl font-semibold tracking-tight">{selectedNote.title}</h1>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-4 h-4" />
-                                {new Date(selectedNote.createdAt).toLocaleDateString("en-US", {
-                                  month: "long",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteNote(selectedNote._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
 
-                        <Separator />
-
-                        <div 
-                          className="prose prose-neutral dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: selectedNote.content }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    /* Notion-style Roadmap View */
-                    <div className="min-h-full">
-                      {/* Notion-style Header */}
-                      <div className="px-8 md:px-16 pt-12 pb-8">
-                        <div className="max-w-7xl mx-auto">
-                          <div className="flex items-center gap-4 mb-6">
-                            <div className="text-5xl">{selectedCourse.icon || "📚"}</div>
-                            <div className="flex-1">
-                              <h1 className="text-4xl font-semibold tracking-tight mb-2">
-                                {selectedCourse.title}
-                              </h1>
-                              {selectedCourse.description && (
-                                <p className="text-base text-muted-foreground">
-                                  {selectedCourse.description}
-                                </p>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteCourse(selectedCourse._id)}
-                              className="shrink-0"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-
-                          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4" />
-                              <span>{notes.length} {notes.length === 1 ? "note" : "notes"}</span>
-                            </div>
+                  {/* Add Manual Note */}
+                  <div className="text-center">
                             <Button
                               variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setShowCreateNote(true);
-                                setNewNoteTitle("");
-                                setNewNoteContent("");
-                                setNewNoteType("lecture");
-                              }}
+                      onClick={() => handleNewLessonAction("manual")}
+                      className="px-6"
                             >
                               <Plus className="w-4 h-4 mr-2" />
-                              New Note
+                      Add Manual Note
                             </Button>
-                          </div>
-                        </div>
                       </div>
 
-                      <Separator />
-
-                      {/* Notes Grid */}
-                      <div className="px-8 md:px-16 py-8">
-                        <div className="max-w-7xl mx-auto">
-                          {/* Create Note Section */}
-                          {showCreateNote && (
-                            <Card className="mb-8 border-2 border-primary/20">
-                              <CardHeader className="pb-4">
-                                <div className="flex items-center justify-between">
-                                  <CardTitle className="text-lg">Create New Note</CardTitle>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setShowCreateNote(false);
-                                      setNewNoteTitle("");
-                                      setNewNoteContent("");
-                                      setNewNoteType("lecture");
-                                    }}
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
+                  {/* Recent Lessons */}
+                  {lessons.length > 0 && (
+                    <div className="space-y-4">
+                      <h2 className="text-base md:text-lg font-medium">Recent Lessons</h2>
+                      
+                      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 -mx-4 px-4 md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        {lessons.slice(0, 4).map((lesson) => (
+                          <Card
+                            key={lesson._id}
+                            className="flex-shrink-0 w-[280px] md:w-80 cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => handleLessonClick(lesson)}
+                          >
+                            <CardContent className="p-4 md:p-6">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="w-8 h-8 rounded-lg bg-foreground/5 flex items-center justify-center shrink-0">
+                                  <FileText className="w-4 h-4 text-foreground/60" />
                                 </div>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="text-sm font-medium mb-2 block">Note Title</label>
-                                    <Input
-                                      placeholder="e.g., Week 3 - Event Loops"
-                                      value={newNoteTitle}
-                                      onChange={(e) => setNewNoteTitle(e.target.value)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium mb-2 block">Type</label>
-                                    <select
-                                      value={newNoteType}
-                                      onChange={(e) => setNewNoteType(e.target.value as any)}
-                                      className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                                    >
-                                      <option value="lecture">Lecture</option>
-                                      <option value="reading">Reading</option>
-                                      <option value="assignment">Assignment</option>
-                                      <option value="lab">Lab</option>
-                                      <option value="other">Other</option>
-                                    </select>
-                                  </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium truncate">{lesson.title}</h3>
+                                  {typeof lesson.courseId === "object" && (
+                                    <p className="text-sm text-muted-foreground">
+                                      {lesson.courseId.title}
+                                    </p>
+                                  )}
                                 </div>
-                                <div>
-                                  <label className="text-sm font-medium mb-2 block">Content</label>
-                                  <RichTextEditor
-                                    content={newNoteContent}
-                                    onChange={setNewNoteContent}
-                                    placeholder="Start writing your notes... Use the toolbar to format text, add lists, links, and more."
-                                    minHeight="300px"
-                                  />
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                                  <Clock className="w-3 h-3" />
+                                  {formatTimeAgo(lesson.createdAt)}
                                 </div>
-                                <Button 
-                                  onClick={handleCreateNote} 
-                                  className="w-full sm:w-auto"
-                                  disabled={loading || !newNoteTitle.trim() || !newNoteContent.trim()}
-                                >
-                                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                  Create Note
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          )}
-
-                          {/* Notes Grid */}
-                          {notesLoading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {[1, 2, 3, 4, 5, 6].map((i) => (
-                                <Card key={i} className="overflow-hidden">
-                                  <CardContent className="p-6">
-                                    <Skeleton className="h-5 w-20 mb-3" />
-                                    <Skeleton className="h-6 w-full mb-2" />
-                                    <Skeleton className="h-4 w-24 mb-4" />
-                                    <Skeleton className="h-4 w-full mb-2" />
-                                    <Skeleton className="h-4 w-full mb-2" />
-                                    <Skeleton className="h-4 w-3/4" />
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
-                          ) : filteredNotes.length === 0 ? (
-                            <div className="py-24 text-center">
-                              <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
-                              <h3 className="text-lg font-medium mb-2">No notes yet</h3>
-                              <p className="text-sm text-muted-foreground mb-6">
-                                {notes.length === 0
-                                  ? "Create your first note to get started"
-                                  : "No notes match your search"}
-                              </p>
-                              {notes.length === 0 && (
-                                <Button
-                                  onClick={() => {
-                                    setShowCreateNote(true);
-                                    setNewNoteTitle("");
-                                    setNewNoteContent("");
-                                    setNewNoteType("lecture");
-                                  }}
-                                >
-                                  <Plus className="w-4 h-4 mr-2" />
-                                  Create Note
-                                </Button>
+                              </div>
+                              
+                              {lesson.content && (
+                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                                  {lesson.content.length > 120 ? lesson.content.substring(0, 120) + "..." : lesson.content}
+                                </p>
                               )}
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {filteredNotes.map((note) => (
-                                <motion.div
-                                  key={note._id}
-                                  initial={{ opacity: 0, y: 20 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <Card 
-                                    className="overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer border-border/50 hover:border-border group"
-                                    onClick={() => setSelectedNote(note)}
-                                  >
-                                    <CardContent className="p-6">
-                                      {/* Badge */}
-                                      <Badge className={`${getBadgeColor(note.type || "other")} border mb-3 text-xs font-medium`}>
-                                        {note.type || "other"}
-                                      </Badge>
-
-                                      {/* Title */}
-                                      <h3 className="text-base font-medium mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                                        {note.title}
-                                      </h3>
-
-                                      {/* Date */}
-                                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-                                        <Clock className="w-3 h-3" />
-                                        {new Date(note.createdAt).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                          year: "numeric",
-                                        })}
-                                      </div>
-
-                                      {/* Summary */}
-                                      <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                                        {note.summary || generateSummary(note.content)}
-                                      </p>
-
-                                      {/* Icons Footer */}
-                                      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/50">
-                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                          <Edit3 className="w-3 h-3" />
-                                        </div>
-                                        <div className="flex-1"></div>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteNote(note._id);
-                                          }}
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </Button>
-                                      </div>
+                              {!lesson.content && (
+                                <p className="text-sm text-muted-foreground italic">
+                                  No content available
+                                </p>
+                              )}
                                     </CardContent>
                                   </Card>
-                                </motion.div>
                               ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
-                  <div className="text-center max-w-md">
-                    <BookOpen className="w-16 h-16 mx-auto mb-6 text-muted-foreground opacity-50" />
-                    <h3 className="text-xl font-semibold mb-2">No course selected</h3>
-                    <p className="text-sm text-muted-foreground mb-6">
-                      {courses.length === 0
-                        ? "Create your first course to get started organizing your notes."
-                        : "Select a course from the sidebar to view and add notes."}
-                    </p>
-                    {courses.length === 0 && (
-                      <Button onClick={() => setShowCreateCourse(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Course
-                      </Button>
-                    )}
+              )}
+
+              {currentView === "upload-audio" && (
+                <div className="p-4 md:p-8 pt-2 md:pt-4">
+                  <AudioTranscriptionUpload 
+                    onNotesGenerated={() => {
+                      fetchLessons();
+                      fetchCourses();
+                      setCurrentView("dashboard");
+                    }}
+                  />
+                </div>
+              )}
+
+              {currentView === "lesson-detail" && selectedLesson && (
+                <div className="p-4 md:p-8 pt-2 md:pt-4">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="space-y-4 md:space-y-6">
+                      <div>
+                        <h1 className="text-2xl md:text-3xl font-semibold mb-2">
+                          {selectedLesson.title}
+                        </h1>
+                        {typeof selectedLesson.courseId !== "string" && (
+                          <p className="text-muted-foreground">
+                            {selectedLesson.courseId.title}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Main Content - AI Summary or Manual Content */}
+                      <div className="prose prose-neutral dark:prose-invert max-w-none">
+                        {selectedLesson.content ? (
+                          <div dangerouslySetInnerHTML={{ __html: selectedLesson.content }} />
+                        ) : (
+                          <p className="text-muted-foreground italic">No content available</p>
+                        )}
+                      </div>
+
+                      {/* Transcription Side Note (if available) */}
+                      {selectedLesson.transcription && selectedLesson.transcription.trim() && (
+                        <>
+                          <Separator />
+                          <div className="space-y-3">
+                            <Button
+                              variant="ghost"
+                              onClick={() => setShowTranscription(!showTranscription)}
+                              className="w-full justify-between p-0 h-auto font-normal"
+                            >
+                              <span className="text-sm font-medium text-muted-foreground">
+                                View Raw Transcription
+                              </span>
+                              {showTranscription ? (
+                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                            {showTranscription && (
+                              <div className="border rounded-lg p-4 bg-muted/30">
+                                <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                                  {selectedLesson.transcription}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
-        </motion.div>
+          </>
+        )}
       </div>
+
+      {/* Lesson Creation Modal */}
+      <LessonCreationModal
+        isOpen={showLessonModal}
+        onClose={() => {
+          setShowLessonModal(false);
+          setLessonModalMode(null);
+        }}
+        mode={lessonModalMode}
+        onCreateLesson={handleCreateLesson}
+      />
     </div>
   );
 }

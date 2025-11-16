@@ -1,53 +1,68 @@
-import mongoose, { Schema, Model, Document } from 'mongoose';
+import mongoose from "mongoose";
 
-/**
- * Lecture Schema
- * 
- * Represents a lecture recording associated with a course.
- * Each lecture has one transcript and one study pack.
- * Status tracks the processing pipeline: uploaded -> transcribed -> processed
- */
-export interface ILecture extends Document {
+export interface ILecture extends mongoose.Document {
+  userId: string;
   courseId: mongoose.Types.ObjectId;
-  userId: string; // Clerk user ID
   title: string;
   audioUrl: string;
-  status: 'uploaded' | 'transcribed' | 'processed';
+  status: "uploaded" | "transcribed" | "processed";
+  content: string; // AI-generated summary for audio transcripts, or manual content
+  transcription?: string; // Raw transcription text from audio
   createdAt: Date;
   updatedAt: Date;
 }
 
-const lectureSchema = new Schema<ILecture>({
-  courseId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Course',
-    required: true,
-    index: true
+const LectureSchema = new mongoose.Schema<ILecture>(
+  {
+    userId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+      index: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    audioUrl: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    status: {
+      type: String,
+      enum: ["uploaded", "transcribed", "processed"],
+      default: "uploaded",
+    },
+    content: {
+      type: String,
+      required: true,
+      default: "",
+    },
+    transcription: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
-  userId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  title: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  audioUrl: {
-    type: String,
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['uploaded', 'transcribed', 'processed'],
-    default: 'uploaded'
+  {
+    timestamps: true,
   }
-}, {
-  timestamps: true
-});
+);
 
-const Lecture: Model<ILecture> = mongoose.models.Lecture || mongoose.model<ILecture>('Lecture', lectureSchema);
+// Create compound index for efficient queries
+LectureSchema.index({ userId: 1, createdAt: -1 });
+LectureSchema.index({ courseId: 1, createdAt: -1 });
 
-export default Lecture;
+// Clear the model cache to ensure updates are applied
+if (mongoose.models.Lecture) {
+  delete mongoose.models.Lecture;
+}
 
+export default mongoose.model<ILecture>("Lecture", LectureSchema);
