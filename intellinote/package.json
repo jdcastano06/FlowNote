@@ -54,6 +54,7 @@
     "framer-motion": "^12.23.24",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.552.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.47.0",
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.3",
     "next": "16.0.1",

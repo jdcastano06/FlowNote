@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "./ui/card";
+import { Card } from "../ui/card";
 import { motion } from "framer-motion";
 import { Sparkles, FolderTree, Cloud, Zap, Lock, Palette } from "lucide-react";
 

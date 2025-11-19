@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, Home } from "lucide-react";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 
 interface BreadcrumbItem {
   label: string;

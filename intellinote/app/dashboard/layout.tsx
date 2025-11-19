@@ -5,8 +5,8 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="h-screen overflow-hidden bg-background">
-      {children}
-    </div>
+        {children}
+      </div>
   );
 }
 

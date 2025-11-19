@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import { motion } from "framer-motion";
 import { FileText, Search, Star, Calendar, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";

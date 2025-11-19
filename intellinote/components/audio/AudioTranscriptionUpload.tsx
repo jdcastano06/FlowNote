@@ -2,8 +2,8 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
+import { Button } from "../ui/button";
+import { Card, CardContent } from "../ui/card";
 import { 
   Upload, 
   Loader2, 
@@ -14,9 +14,9 @@ import {
   Check,
   Sparkles
 } from "lucide-react";
-import { Separator } from "./ui/separator";
-import { Skeleton } from "./ui/skeleton";
-import { ConfirmationCard } from "./ConfirmationCard";
+import { Separator } from "../ui/separator";
+import { Skeleton } from "../ui/skeleton";
+import { ConfirmationCard } from "../forms/ConfirmationCard";
 
 interface TranscriptionResult {
   transcription: string;

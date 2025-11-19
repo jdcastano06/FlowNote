@@ -14,9 +14,9 @@ export interface ILecture extends mongoose.Document {
 
 const LectureSchema = new mongoose.Schema<ILecture>(
   {
-    userId: {
-      type: String,
-      required: true,
+  userId: {
+    type: String,
+    required: true,
       index: true,
     },
     courseId: {
@@ -24,19 +24,19 @@ const LectureSchema = new mongoose.Schema<ILecture>(
       ref: "Course",
       required: true,
       index: true,
-    },
-    title: {
-      type: String,
-      required: true,
+  },
+  title: {
+    type: String,
+    required: true,
       trim: true,
-    },
-    audioUrl: {
-      type: String,
+  },
+  audioUrl: {
+    type: String,
       required: false,
       default: "",
-    },
-    status: {
-      type: String,
+  },
+  status: {
+    type: String,
       enum: ["uploaded", "transcribed", "processed"],
       default: "uploaded",
     },

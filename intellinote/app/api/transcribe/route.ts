@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY ;
-const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION ;
-const AZURE_SPEECH_ENDPOINT = `REMOVED_ENDPOINT/speechtotext/transcriptions:transcribe?api-version=2024-11-15`;
+const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
+const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
+const AZURE_SPEECH_ENDPOINT = process.env.AZURE_SPEECH_ENDPOINT;
 
 /**
  * POST /api/transcribe
@@ -24,6 +24,13 @@ export async function POST(request: Request) {
 
     if (!audioFile) {
       return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
+    }
+
+    if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_ENDPOINT) {
+      return NextResponse.json(
+        { error: "Azure Speech configuration not found" },
+        { status: 500 }
+      );
     }
 
     console.log("Starting transcription for file:", audioFile.name, "Size:", audioFile.size);

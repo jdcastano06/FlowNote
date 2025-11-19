@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Course from "@/models/Course";
 
-const LLM_API_KEY = "sk-do-yML_G46v1_1B_WSO0JS0swV8TzS0v7XbahiQlKAGz73CpVBwRM9dOzG0dP";
-const LLM_ENDPOINT = "https://inference.do-ai.run/v1/chat/completions";
+const LLM_API_KEY = process.env.LLM_API_KEY;
+const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
 
 /**
  * POST /api/classify-course
@@ -13,6 +13,13 @@ const LLM_ENDPOINT = "https://inference.do-ai.run/v1/chat/completions";
  */
 export async function POST(request: Request) {
   try {
+    if (!LLM_API_KEY || !LLM_ENDPOINT) {
+      return NextResponse.json(
+        { error: "LLM API key or endpoint not configured" },
+        { status: 500 }
+      );
+    }
+
     const { userId } = await auth();
 
     if (!userId) {

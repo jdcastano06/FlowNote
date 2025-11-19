@@ -1,8 +1,8 @@
-import { Header } from "../components/Header";
-import { Hero } from "../components/Hero";
-import { Features } from "../components/Features";
-import { CTA } from "../components/CTA";
-import { Footer } from "../components/Footer";
+import { Header } from "@/components/layout/Header";
+import { Hero } from "@/components/landing/Hero";
+import { Features } from "@/components/landing/Features";
+import { CTA } from "@/components/landing/CTA";
+import { Footer } from "@/components/layout/Footer";
 
 export default function App() {
   return (

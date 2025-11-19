@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Upload, Loader2, CheckCircle, XCircle } from "lucide-react";
 
 interface AudioUploadProps {
