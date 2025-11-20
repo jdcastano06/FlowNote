@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Model } from "mongoose";
 
 export interface ILecture extends mongoose.Document {
   userId: string;
@@ -60,9 +60,7 @@ const LectureSchema = new mongoose.Schema<ILecture>(
 LectureSchema.index({ userId: 1, createdAt: -1 });
 LectureSchema.index({ courseId: 1, createdAt: -1 });
 
-// Clear the model cache to ensure updates are applied
-if (mongoose.models.Lecture) {
-  delete mongoose.models.Lecture;
-}
+// Use the same pattern as other models for serverless compatibility
+const Lecture: Model<ILecture> = mongoose.models.Lecture || mongoose.model<ILecture>("Lecture", LectureSchema);
 
-export default mongoose.model<ILecture>("Lecture", LectureSchema);
+export default Lecture;

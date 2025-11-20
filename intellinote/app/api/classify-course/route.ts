@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
-import Course from "@/models/Course";
+import { Course } from "@/models"; // Import from central models file
 
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const LLM_ENDPOINT = process.env.LLM_ENDPOINT;

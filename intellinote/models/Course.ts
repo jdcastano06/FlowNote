@@ -40,11 +40,7 @@ const courseSchema = new Schema<ICourse>({
   timestamps: true
 });
 
-// Clear existing model in development to pick up schema changes
-if (process.env.NODE_ENV === 'development' && mongoose.models.Course) {
-  delete mongoose.models.Course;
-}
-
+// Use the serverless-friendly pattern for model registration
 const Course: Model<ICourse> = mongoose.models.Course || mongoose.model<ICourse>('Course', courseSchema);
 
 export default Course;

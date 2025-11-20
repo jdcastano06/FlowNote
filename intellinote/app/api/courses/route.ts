@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
-import Course from "@/models/Course";
+import { Course } from "@/models"; // Import from central models file
 
 // GET /api/courses - Get all courses for the authenticated user
 export async function GET() {
