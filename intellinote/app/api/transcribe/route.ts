@@ -1,11 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-/**
- * POST /api/transcribe
- * 
- * Transcribes an audio file using Azure Speech-to-Text Fast Transcription API
- */
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -14,7 +11,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Read environment variables inside handler for serverless compatibility
     const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
     const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
     const AZURE_SPEECH_ENDPOINT = process.env.AZURE_SPEECH_ENDPOINT;
@@ -24,38 +20,61 @@ export async function POST(request: Request) {
     const locale = formData.get("locale") as string || "en-US";
 
     if (!audioFile) {
+      console.error("[transcribe] No audio file provided in request");
       return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
     }
 
-    if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_ENDPOINT) {
+    console.log("[transcribe] Received file:", audioFile.name, "Type:", audioFile.type, "Size:", audioFile.size, "bytes");
+    if (!AZURE_SPEECH_KEY) {
+      console.error("[transcribe] AZURE_SPEECH_KEY is not configured");
       return NextResponse.json(
-        { error: "Azure Speech configuration not found" },
+        { error: "Azure Speech Key not configured" },
         { status: 500 }
       );
     }
 
-    console.log("Starting transcription for file:", audioFile.name, "Size:", audioFile.size);
+    if (!AZURE_SPEECH_REGION) {
+      console.error("[transcribe] AZURE_SPEECH_REGION is not configured");
+      return NextResponse.json(
+        { error: "Azure Speech Region not configured" },
+        { status: 500 }
+      );
+    }
 
-    // Convert file to buffer
+    if (!AZURE_SPEECH_ENDPOINT) {
+      console.error("[transcribe] AZURE_SPEECH_ENDPOINT is not configured");
+      return NextResponse.json(
+        { error: "Azure Speech Endpoint not configured" },
+        { status: 500 }
+      );
+    }
+
+    console.log("[transcribe] Using endpoint:", AZURE_SPEECH_ENDPOINT);
+    console.log("[transcribe] Starting transcription for file:", audioFile.name, "Size:", audioFile.size);
+
+    console.log("[transcribe] Converting file to buffer...");
     const arrayBuffer = await audioFile.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
+    console.log("[transcribe] Buffer created, size:", audioBuffer.length, "bytes");
 
-    // Prepare multipart form data for Azure API
     const azureFormData = new FormData();
     
-    // Add audio file
-    const blob = new Blob([audioBuffer], { type: audioFile.type });
+    const mimeType = audioFile.type || "audio/wav";
+    console.log("[transcribe] Creating blob with MIME type:", mimeType);
+    const blob = new Blob([audioBuffer], { type: mimeType });
     azureFormData.append('audio', blob, audioFile.name);
     
-    // Add definition
     const definition = {
       locales: [locale],
       profanityFilterMode: "Masked",
       channels: [0, 1]
     };
+    console.log("[transcribe] Definition:", JSON.stringify(definition));
     azureFormData.append('definition', JSON.stringify(definition));
 
-    // Call Azure Speech-to-Text API
+    console.log("[transcribe] Sending request to Azure...");
+    const startTime = Date.now();
+    
     const response = await fetch(AZURE_SPEECH_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -65,20 +84,26 @@ export async function POST(request: Request) {
       body: azureFormData,
     });
 
+    const requestDuration = Date.now() - startTime;
+    console.log(`[transcribe] Azure response received in ${requestDuration}ms, status: ${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Azure API error:", response.status, errorText);
+      console.error("[transcribe] Azure API error:", response.status, errorText);
+      console.error("[transcribe] Endpoint used:", AZURE_SPEECH_ENDPOINT);
       return NextResponse.json(
-        { error: `Azure API error: ${response.status}`, details: errorText },
+        { 
+          error: `Azure transcription failed: ${response.status}`, 
+          details: errorText,
+          endpoint: AZURE_SPEECH_ENDPOINT.replace(AZURE_SPEECH_KEY, '***')
+        },
         { status: response.status }
       );
     }
 
     const result = await response.json();
-    console.log("Transcription successful");
+    console.log("[transcribe] Transcription successful, result:", JSON.stringify(result).substring(0, 200));
 
-    // Extract the transcription text from the response
-    // Azure Fast Transcription returns combinedPhrases with text
     let transcriptionText = "";
     let duration = 0;
     let phrases: any[] = [];
@@ -95,7 +120,6 @@ export async function POST(request: Request) {
         durationMilliseconds: phrase.durationMilliseconds,
       }));
       
-      // Calculate total duration
       const lastPhrase = result.phrases[result.phrases.length - 1];
       if (lastPhrase) {
         duration = (lastPhrase.offsetMilliseconds + lastPhrase.durationMilliseconds) / 1000;
@@ -111,9 +135,18 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error("Error during transcription:", error);
+    console.error("[transcribe] Error during transcription:", error);
+    console.error("[transcribe] Error name:", error.name);
+    console.error("[transcribe] Error message:", error.message);
+    console.error("[transcribe] Error stack:", error.stack);
+    
     return NextResponse.json(
-      { error: "Failed to transcribe audio", details: error.message },
+      { 
+        error: "Failed to transcribe audio", 
+        details: error.message,
+        errorType: error.name,
+        errorCode: error.code
+      },
       { status: 500 }
     );
   }

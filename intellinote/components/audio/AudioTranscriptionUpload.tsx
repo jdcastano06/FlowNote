@@ -71,6 +71,13 @@ export function AudioTranscriptionUpload({ onNotesGenerated }: AudioTranscriptio
 
     const droppedFile = e.dataTransfer.files?.[0];
     if (droppedFile && droppedFile.type.startsWith("audio/")) {
+      // Validate file size (max 4.8MB for Vercel)
+      const maxSize = 4.8 * 1024 * 1024;
+      if (droppedFile.size > maxSize) {
+        setError("File is too large. Maximum size is 4.8MB due to Vercel serverless limits.");
+        return;
+      }
+      
       setFile(droppedFile);
       setError(null);
       setTranscriptionResult(null);
@@ -86,10 +93,10 @@ export function AudioTranscriptionUpload({ onNotesGenerated }: AudioTranscriptio
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
-    // Validate file size (max 500MB)
-    const maxSize = 500 * 1024 * 1024;
+    // Validate file size (max 4.8MB for Vercel)
+    const maxSize = 4.8 * 1024 * 1024;
     if (selectedFile.size > maxSize) {
-      setError("File is too large. Maximum size is 500MB.");
+      setError("File is too large. Maximum size is 4.8MB due to Vercel serverless limits.");
       return;
     }
 
@@ -119,10 +126,15 @@ export function AudioTranscriptionUpload({ onNotesGenerated }: AudioTranscriptio
       });
 
       if (!transcribeResponse.ok) {
-        throw new Error("Transcription failed");
+        const errorData = await transcribeResponse.json().catch(() => ({ error: "Unknown error" }));
+        const errorMessage = errorData.error || "Transcription failed";
+        const errorDetails = errorData.details ? ` - ${errorData.details}` : "";
+        console.error("Transcription error:", errorData);
+        throw new Error(`${errorMessage}${errorDetails}`);
       }
 
       const transcription = await transcribeResponse.json();
+      console.log("Transcription successful:", transcription);
       setTranscriptionResult(transcription);
 
       // Step 2: Classify
@@ -299,6 +311,29 @@ export function AudioTranscriptionUpload({ onNotesGenerated }: AudioTranscriptio
 
   return (
     <div className="space-y-4">
+      {/* File Size Warning - Prominent at top */}
+      {!file && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <span className="text-destructive text-lg">⚠️</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-destructive">
+                  Vercel Serverless Limitation
+                </p>
+                <p className="text-xs text-destructive/80 mt-0.5">
+                  Files must be under 4.8MB for transcription processing
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Upload Area */}
       <AnimatePresence mode="wait">
         {!file ? (
@@ -353,7 +388,7 @@ export function AudioTranscriptionUpload({ onNotesGenerated }: AudioTranscriptio
                   </Button>
 
                   <p className="text-xs text-muted-foreground pt-3">
-                    MP3, WAV, M4A · Max 500MB
+                    MP3, WAV, M4A · Max 4.8MB
                   </p>
                 </div>
               </CardContent>

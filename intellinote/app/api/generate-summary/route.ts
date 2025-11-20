@@ -17,7 +17,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Read environment variables inside handler for serverless compatibility
     const LLM_API_KEY = process.env.LLM_API_KEY;
     const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
 
@@ -44,13 +43,10 @@ export async function POST(request: Request) {
       lessonTitle: lessonTitle || "Not provided"
     });
 
-    // Use ES6 class to process transcription
     const processor = new TranscriptionProcessor(transcription);
     const cleanedTranscription = processor.clean();
     const wordCount = processor.getWordCount();
     console.log(`Processed transcription: ${wordCount} words, ${processor.getCharacterCount()} characters`);
-
-    // Create prompt for the LLM with course/lesson context
     const contextInfo = courseTitle || lessonTitle 
       ? `\n\nContext:\nCourse: ${courseTitle || "Not specified"}\nLesson: ${lessonTitle || "Not specified"}`
       : "";
@@ -105,7 +101,6 @@ ${cleanedTranscription}
 
 Generate detailed, structured notes that a student can use for studying. Include all important information, formulas, definitions, and explanations. Use proper HTML formatting for readability. Respond with ONLY the JSON object, no additional text.`;
 
-    // Call the LLM API
     const response = await fetch(LLM_ENDPOINT, {
       method: "POST",
       headers: {
@@ -136,7 +131,6 @@ Generate detailed, structured notes that a student can use for studying. Include
 
     const result = await response.json();
     
-    // Check for error in response
     if (result.error) {
       console.error("LLM API returned error:", result.error);
       return NextResponse.json(
@@ -152,33 +146,24 @@ Generate detailed, structured notes that a student can use for studying. Include
       firstChoice: result.choices?.[0] ? Object.keys(result.choices[0]) : null
     });
 
-    // Extract the content from the LLM response
-    // Handle different response formats
     let content = null;
     
     if (result.choices && result.choices.length > 0) {
-      // Standard OpenAI format: result.choices[0].message.content
       const choice = result.choices[0];
       if (choice.message) {
-        // Some models use reasoning_content for thinking, content for final answer
-        // If content is null but reasoning_content exists, try to extract JSON from reasoning_content
         if (choice.message.content) {
           content = choice.message.content;
         } else if (choice.message.reasoning_content) {
-          // Model hit token limit - try to extract JSON from reasoning_content
           console.warn("Model hit token limit. Attempting to extract JSON from reasoning_content.");
           const reasoning = choice.message.reasoning_content;
-          // Try to find JSON in the reasoning content
           const jsonMatch = reasoning.match(/\{[\s\S]*"summary"[\s\S]*\}/);
           if (jsonMatch) {
             content = jsonMatch[0];
           } else {
-            // Fallback: use reasoning_content as content (might contain useful info)
             content = reasoning;
           }
         }
         
-        // Warn if hit token limit
         if (choice.finish_reason === 'length') {
           console.warn("LLM response hit token limit. Consider increasing max_tokens or shortening transcription.");
         }
@@ -193,13 +178,10 @@ Generate detailed, structured notes that a student can use for studying. Include
       // Alternative format
       content = result.content;
     } else if (result.text) {
-      // Another alternative format
       content = result.text;
     } else if (result.message) {
-      // Direct message format
       content = result.message;
     } else if (typeof result === 'string') {
-      // Response is directly a string
       content = result;
     }
     
@@ -216,11 +198,8 @@ Generate detailed, structured notes that a student can use for studying. Include
       );
     }
 
-    // Parse the JSON response from the LLM
     let summaryData;
     try {
-      // Try to extract JSON from the response
-      // Look for JSON object pattern - match the most complete JSON
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
@@ -261,7 +240,6 @@ Generate detailed, structured notes that a student can use for studying. Include
       };
     }
 
-    // Ensure keyPoints is an array
     if (!Array.isArray(summaryData.keyPoints)) {
       summaryData.keyPoints = [];
     }

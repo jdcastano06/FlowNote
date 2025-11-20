@@ -40,7 +40,6 @@ const courseSchema = new Schema<ICourse>({
   timestamps: true
 });
 
-// Use the serverless-friendly pattern for model registration
 const Course: Model<ICourse> = mongoose.models.Course || mongoose.model<ICourse>('Course', courseSchema);
 
 export default Course;

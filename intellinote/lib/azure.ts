@@ -34,7 +34,6 @@ export async function getContainerClient(): Promise<ContainerClient> {
     containerClient = blobServiceClient.getContainerClient(containerName);
 
     // Create container if it doesn't exist
-    // Note: We don't specify access level since the storage account doesn't allow public access
     try {
       await containerClient.createIfNotExists();
       console.log("Container created or already exists:", containerName);
