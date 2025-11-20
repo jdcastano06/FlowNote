@@ -7,7 +7,8 @@ const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
 /**
  * POST /api/generate-summary
  * 
- * Generates a summary and key points from a transcription using LLM
+ * Generates comprehensive, structured lecture notes with sections, formulas, and detailed explanations
+ * from a transcription using LLM. Returns HTML-formatted notes suitable for studying.
  */
 export async function POST(request: Request) {
   try {
@@ -45,20 +46,47 @@ export async function POST(request: Request) {
       ? `\n\nContext:\nCourse: ${courseTitle || "Not specified"}\nLesson: ${lessonTitle || "Not specified"}`
       : "";
 
-    const prompt = `You are an AI assistant that helps students create clear, concise study notes from lecture transcriptions.
+    const prompt = `You are an expert note-taking assistant that transforms lecture transcriptions into comprehensive, well-structured study notes.
 
-Please analyze the following lecture transcription and provide:
-1. A comprehensive summary (2-3 paragraphs)
-2. A list of 5-7 key points or takeaways
+${contextInfo ? `The lecture is from the course "${courseTitle || "Unknown"}" and the lesson is titled "${lessonTitle || "Unknown"}". Use this context to organize the notes appropriately.` : ""}
 
-${contextInfo ? `The lecture is from the course "${courseTitle || "Unknown"}" and the lesson is titled "${lessonTitle || "Unknown"}". Use this context to make the summary more relevant and focused.` : ""}
+Analyze the following lecture transcription and create detailed, structured notes in HTML format. The notes should be comprehensive and study-ready, similar to what a diligent student would take.
 
-Format your response as JSON with the following structure:
+**Requirements:**
+1. Organize content into clear sections with HTML headings (h2, h3)
+2. Include detailed explanations, not just summaries
+3. Highlight all formulas, equations, and definitions prominently
+4. Include key concepts with clear explanations
+5. Add examples if mentioned in the lecture
+6. Use proper HTML formatting: headings, paragraphs, lists, code blocks for formulas
+7. Make it easy to study from - include context and connections between concepts
+
+**Format Guidelines:**
+- Use <h2> for main topics/sections
+- Use <h3> for subtopics
+- Use <p> for explanations
+- Use <ul> or <ol> for lists
+- Use <strong> or <em> for emphasis
+- Use <code> or <pre> for formulas and code
+- Use <blockquote> for important definitions or quotes
+- Create clear visual hierarchy
+
+**Structure your notes as:**
+- Introduction/Overview (if applicable)
+- Main Topics (each as a section)
+- Key Concepts (with detailed explanations)
+- Formulas/Equations (clearly highlighted)
+- Examples (if provided)
+- Important Takeaways
+
+**IMPORTANT: Respond ONLY with valid JSON. Do not include any reasoning or explanation outside the JSON.**
+
+Format your response as JSON:
 {
-  "summary": "Your comprehensive summary here...",
+  "summary": "HTML-formatted comprehensive notes with proper structure, sections, formulas, and detailed explanations",
   "keyPoints": [
-    "First key point",
-    "Second key point",
+    "Key takeaway 1",
+    "Key takeaway 2",
     ...
   ]
 }
@@ -66,7 +94,7 @@ Format your response as JSON with the following structure:
 Transcription:
 ${transcription}
 
-Provide only the JSON response, no additional text.`;
+Generate detailed, structured notes that a student can use for studying. Include all important information, formulas, definitions, and explanations. Use proper HTML formatting for readability. Respond with ONLY the JSON object, no additional text.`;
 
     // Call the LLM API
     const response = await fetch(LLM_ENDPOINT, {
@@ -83,8 +111,8 @@ Provide only the JSON response, no additional text.`;
             content: prompt,
           },
         ],
-        max_tokens: 1000,
-        temperature: 0.7,
+        max_tokens: 3000,
+        temperature: 0.5,
       }),
     });
 
@@ -98,34 +126,128 @@ Provide only the JSON response, no additional text.`;
     }
 
     const result = await response.json();
-    console.log("LLM response received");
+    
+    // Check for error in response
+    if (result.error) {
+      console.error("LLM API returned error:", result.error);
+      return NextResponse.json(
+        { error: "LLM API error", details: result.error.message || result.error },
+        { status: 500 }
+      );
+    }
+
+    console.log("LLM response received. Structure:", {
+      hasChoices: !!result.choices,
+      choicesLength: result.choices?.length,
+      resultKeys: Object.keys(result),
+      firstChoice: result.choices?.[0] ? Object.keys(result.choices[0]) : null
+    });
 
     // Extract the content from the LLM response
-    const content = result.choices?.[0]?.message?.content;
+    // Handle different response formats
+    let content = null;
+    
+    if (result.choices && result.choices.length > 0) {
+      // Standard OpenAI format: result.choices[0].message.content
+      const choice = result.choices[0];
+      if (choice.message) {
+        // Some models use reasoning_content for thinking, content for final answer
+        // If content is null but reasoning_content exists, try to extract JSON from reasoning_content
+        if (choice.message.content) {
+          content = choice.message.content;
+        } else if (choice.message.reasoning_content) {
+          // Model hit token limit - try to extract JSON from reasoning_content
+          console.warn("Model hit token limit. Attempting to extract JSON from reasoning_content.");
+          const reasoning = choice.message.reasoning_content;
+          // Try to find JSON in the reasoning content
+          const jsonMatch = reasoning.match(/\{[\s\S]*"summary"[\s\S]*\}/);
+          if (jsonMatch) {
+            content = jsonMatch[0];
+          } else {
+            // Fallback: use reasoning_content as content (might contain useful info)
+            content = reasoning;
+          }
+        }
+        
+        // Warn if hit token limit
+        if (choice.finish_reason === 'length') {
+          console.warn("LLM response hit token limit. Consider increasing max_tokens or shortening transcription.");
+        }
+      } else if (choice.text) {
+        content = choice.text;
+      } else if (choice.content) {
+        content = choice.content;
+      } else if (typeof choice === 'string') {
+        content = choice;
+      }
+    } else if (result.content) {
+      // Alternative format
+      content = result.content;
+    } else if (result.text) {
+      // Another alternative format
+      content = result.text;
+    } else if (result.message) {
+      // Direct message format
+      content = result.message;
+    } else if (typeof result === 'string') {
+      // Response is directly a string
+      content = result;
+    }
     
     if (!content) {
-      throw new Error("No content in LLM response");
+      console.error("LLM response structure (full):", JSON.stringify(result, null, 2));
+      return NextResponse.json(
+        { 
+          error: "No content in LLM response", 
+          details: "The LLM API returned a response but no content was found in the expected format.",
+          responseStructure: Object.keys(result),
+          debug: result
+        },
+        { status: 500 }
+      );
     }
 
     // Parse the JSON response from the LLM
     let summaryData;
     try {
       // Try to extract JSON from the response
+      // Look for JSON object pattern - match the most complete JSON
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
+        try {
         summaryData = JSON.parse(jsonMatch[0]);
+        } catch (jsonError) {
+          // If JSON parsing fails, try to find a better match
+          // Sometimes the JSON might be incomplete or have extra text
+          const betterMatch = content.match(/\{[\s\S]*"summary"[\s\S]*\}/);
+          if (betterMatch) {
+            summaryData = JSON.parse(betterMatch[0]);
+          } else {
+            throw jsonError;
+          }
+        }
       } else {
-        // If no JSON found, create a structured response from the text
+        // If no JSON found, check if content looks like HTML (might be direct HTML response)
+        if (content.includes('<h2>') || content.includes('<h3>') || content.includes('<p>')) {
+          // Content is already HTML formatted
         summaryData = {
           summary: content,
           keyPoints: [],
         };
+        } else {
+          // Create a structured response from the text
+          summaryData = {
+            summary: `<div class="prose"><p>${content.replace(/\n/g, '</p><p>')}</p></div>`,
+            keyPoints: [],
+          };
+        }
       }
     } catch (parseError) {
       console.error("Error parsing LLM JSON:", parseError);
-      // Fallback: use the content as summary
+      // Fallback: use the content as summary, wrap in HTML if needed
+      const htmlContent = content.includes('<') ? content : `<div class="prose"><p>${content}</p></div>`;
       summaryData = {
-        summary: content,
+        summary: htmlContent,
         keyPoints: [],
       };
     }

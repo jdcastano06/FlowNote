@@ -294,17 +294,6 @@ export function DashboardContent() {
               onUploadFile={() => handleNewLessonActionWithClose("upload")}
               onManualNote={() => handleNewLessonActionWithClose("manual")}
             />
-            <div className="p-2 border-t border-border">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-full"
-                onClick={() => setSidebarCollapsed(false)}
-                title="Expand sidebar"
-              >
-                <PanelLeftOpen className="w-4 h-4" />
-              </Button>
-            </div>
           </>
         ) : (
           <DashboardSidebar
@@ -336,10 +325,11 @@ export function DashboardContent() {
             exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
           >
-              <SignIn
-                routing="virtual"
-                afterSignInUrl={typeof window !== "undefined" ? window.location.href : "/"}
-              />
+            <SignIn
+              routing="virtual"
+              redirectUrl="/dashboard"   // or any fixed page
+            />
+
           </motion.div>
         )}
       </AnimatePresence>
@@ -415,13 +405,33 @@ export function DashboardContent() {
               {currentView === "record-audio" && (
                 <div className="p-4 md:p-8 pt-2 md:pt-4 flex-1 flex flex-col min-h-0">
                   <RealTimeRecording 
-                    onClose={() => setCurrentView("dashboard")}
+                    onClose={() => {
+                      fetchLessons();
+                      fetchCourses();
+                      setCurrentView("dashboard");
+                    }}
+                    onNotesGenerated={() => {
+                      fetchLessons();
+                      fetchCourses();
+                    }}
                   />
                 </div>
               )}
 
               {currentView === "lesson-detail" && selectedLesson && (
-                <LessonDetailView lesson={selectedLesson} />
+                <LessonDetailView 
+                  lesson={selectedLesson}
+                  onUpdate={(updatedLesson) => {
+                    // Update the lesson in the list
+                    setLessons(prevLessons =>
+                      prevLessons.map(l =>
+                        l._id === updatedLesson._id ? { ...l, ...updatedLesson } : l
+                      )
+                    );
+                    // Update selected lesson
+                    setSelectedLesson({ ...selectedLesson, ...updatedLesson });
+                  }}
+                />
               )}
             </div>
           </>

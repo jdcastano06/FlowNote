@@ -2,6 +2,8 @@
 
 import { Button } from "../ui/button";
 import { NewLessonDropdown } from "./NewLessonDropdown";
+import { UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import {
   FileText,
   ChevronRight,
@@ -9,6 +11,7 @@ import {
   Settings,
   Home,
   PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 interface Course {
@@ -58,14 +61,43 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   return (
     <>
-      {/* Logo */}
+      {/* Logo with Collapse/Expand Button */}
       <div className={`p-4 md:p-6 border-b border-border ${collapsed ? 'flex justify-center' : ''}`}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center shrink-0">
-            <FileText className="w-4 h-4 text-background" />
+        {collapsed ? (
+          <div className="group relative flex justify-center">
+            <Link href="/" className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 transition-opacity">
+              <FileText className="w-4 h-4 text-background" />
+            </Link>
+            {/* Expand button appears on hover when collapsed */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute left-full ml-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-md"
+              onClick={onToggleCollapse}
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </Button>
           </div>
-          {!collapsed && <span className="text-lg font-semibold">NoteFlow</span>}
-        </div>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-background" />
+              </div>
+              <span className="text-lg font-semibold">NoteFlow</span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onToggleCollapse}
+              title="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* New Lesson Button */}
@@ -176,32 +208,28 @@ export function DashboardSidebar({
         </div>
       </div>
 
-      {/* Settings */}
+      {/* Settings with User Button */}
       <div className={`p-4 md:p-6 border-t border-border ${collapsed ? 'flex justify-center' : ''}`}>
-        <Button 
-          variant="ghost" 
-          className={`w-full ${collapsed ? 'w-10 p-0 justify-center' : 'justify-start'}`}
-          title={collapsed ? "Settings" : undefined}
-        >
-          <Settings className="w-4 h-4" />
-          {!collapsed && <span className="ml-2">Settings</span>}
-        </Button>
+        {collapsed ? (
+          <div className="flex justify-center">
+            <UserButton />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
+              <Settings className="w-3 h-3" />
+              <span>Account</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <UserButton />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Account Settings</p>
+                <p className="text-xs text-muted-foreground">Manage your account</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Collapse/Expand Button (Desktop only) */}
-      {!collapsed && (
-        <div className="hidden md:block p-2 border-t border-border">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-full"
-            onClick={onToggleCollapse}
-            title="Collapse sidebar"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
     </>
   );
 }

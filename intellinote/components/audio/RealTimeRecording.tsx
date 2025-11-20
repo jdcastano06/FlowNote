@@ -4,11 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-import { Mic, Square, Loader2, X, Sparkles, BookOpen, Lightbulb } from "lucide-react";
+import { Mic, Square, Loader2, X, Sparkles, BookOpen, Lightbulb, FileText } from "lucide-react";
+import { ConfirmationCard } from "../forms/ConfirmationCard";
 import * as SpeechSDK from "microsoft-cognitiveservices-speech-sdk";
 
 interface RealTimeRecordingProps {
   onClose?: () => void;
+  onNotesGenerated?: () => void;
 }
 
 interface Insight {
@@ -18,7 +20,7 @@ interface Insight {
   timestamp: number;
 }
 
-export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
+export function RealTimeRecording({ onClose, onNotesGenerated }: RealTimeRecordingProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcription, setTranscription] = useState<string>("");
   const [isConnecting, setIsConnecting] = useState(false);
@@ -26,6 +28,11 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
   const [recordingTime, setRecordingTime] = useState(0);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [showGenerateNotes, setShowGenerateNotes] = useState(false);
+  const [classificationResult, setClassificationResult] = useState<any>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [notesGenerated, setNotesGenerated] = useState(false);
 
   const recognizerRef = useRef<SpeechSDK.SpeechRecognizer | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -133,6 +140,26 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
       setIsConnecting(true);
       setError(null);
 
+      // Check if MediaDevices API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Microphone access is not available in this browser. Please use a modern browser with microphone support.");
+      }
+
+      // Request microphone permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop the stream immediately - we just needed permission
+        stream.getTracks().forEach(track => track.stop());
+      } catch (mediaError: any) {
+        if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
+          throw new Error("Microphone permission denied. Please allow microphone access and try again.");
+        } else if (mediaError.name === 'NotFoundError' || mediaError.name === 'DevicesNotFoundError') {
+          throw new Error("No microphone found. Please connect a microphone and try again.");
+        } else {
+          throw new Error(`Microphone access error: ${mediaError.message}`);
+        }
+      }
+
       // Get token from our API
       const tokenResponse = await fetch("/api/speech-token");
       if (!tokenResponse.ok) {
@@ -149,7 +176,12 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
       speechConfig.speechRecognitionLanguage = "en-US";
 
       // Create audio config from default microphone
-      const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+      let audioConfig: SpeechSDK.AudioConfig;
+      try {
+        audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+      } catch (audioError: any) {
+        throw new Error(`Failed to initialize microphone: ${audioError.message || 'Unknown error'}`);
+      }
       audioConfigRef.current = audioConfig;
 
       // Create recognizer
@@ -274,6 +306,11 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
             clearInterval(chunkTimerRef.current);
             chunkTimerRef.current = null;
           }
+
+          // Show generate notes option if there's transcription
+          if (finalTranscriptionRef.current.trim().length > 0) {
+            setShowGenerateNotes(true);
+          }
         },
         (err) => {
           console.error("Error stopping recognition:", err);
@@ -286,6 +323,163 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
     if (audioConfigRef.current) {
       audioConfigRef.current.close();
       audioConfigRef.current = null;
+    }
+  };
+
+  // Classify course and lesson from transcription
+  const handleClassifyAndShowModal = async () => {
+    if (!finalTranscriptionRef.current.trim()) {
+      setError("No transcription available");
+      return;
+    }
+
+    setIsClassifying(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/classify-course", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcription: finalTranscriptionRef.current,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to classify course");
+      }
+
+      const data = await response.json();
+      setClassificationResult(data);
+    } catch (err: any) {
+      console.error("Error classifying course:", err);
+      setError(err.message || "Failed to classify course");
+      // Still show modal with default values
+      setClassificationResult({
+        suggestedCourse: "General Course",
+        suggestedLessonTitle: `Lecture ${new Date().toLocaleDateString()}`,
+        isNewCourse: true,
+      });
+    } finally {
+      setIsClassifying(false);
+    }
+  };
+
+  // Generate notes from transcription
+  const handleGenerateNotes = async (
+    courseTitle: string,
+    lessonTitle: string,
+    courseId?: string,
+    originalCourseTitle?: string
+  ) => {
+    if (!finalTranscriptionRef.current.trim()) {
+      setError("No transcription available");
+      return;
+    }
+
+    setIsGeneratingNotes(true);
+    setError(null);
+
+    try {
+      // Determine which course to use
+      let finalCourseId = courseId;
+      const courseTitleTrimmed = courseTitle.trim();
+      const originalCourseTitleTrimmed = originalCourseTitle?.trim() || "";
+      
+      const courseNameChanged = courseId && 
+        originalCourseTitleTrimmed && 
+        courseTitleTrimmed.toLowerCase() !== originalCourseTitleTrimmed.toLowerCase();
+
+      if (courseNameChanged || !finalCourseId) {
+        const coursesResponse = await fetch("/api/courses");
+        if (coursesResponse.ok) {
+          const coursesData = await coursesResponse.json();
+          const existingCourse = coursesData.courses?.find((c: any) => 
+            c.title.toLowerCase().trim() === courseTitleTrimmed.toLowerCase()
+          );
+
+          if (existingCourse) {
+            finalCourseId = existingCourse._id;
+          } else {
+            const courseResponse = await fetch("/api/courses", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: courseTitleTrimmed,
+                description: "",
+              }),
+            });
+
+            if (courseResponse.ok) {
+              const courseData = await courseResponse.json();
+              finalCourseId = courseData.course._id;
+            } else {
+              throw new Error("Failed to create course");
+            }
+          }
+        }
+      }
+
+      // Create lecture
+      const lectureResponse = await fetch("/api/lectures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId: finalCourseId,
+          title: lessonTitle,
+          audioUrl: "",
+          transcription: finalTranscriptionRef.current,
+          content: "",
+        }),
+      });
+
+      if (!lectureResponse.ok) {
+        throw new Error("Failed to create lecture");
+      }
+
+      const lectureData = await lectureResponse.json();
+
+      // Generate summary
+      const summaryResponse = await fetch("/api/generate-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcription: finalTranscriptionRef.current,
+          courseTitle: courseTitle,
+          lessonTitle: lessonTitle,
+        }),
+      });
+
+      if (summaryResponse.ok) {
+        const summary = await summaryResponse.json();
+        
+        // Update lecture with AI-generated summary
+        const lectureId = lectureData.lecture?._id;
+        if (lectureId) {
+          await fetch(`/api/lectures/${lectureId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: summary.summary,
+            }),
+          });
+        }
+
+        setNotesGenerated(true);
+        setShowGenerateNotes(false);
+        setClassificationResult(null);
+
+        if (onNotesGenerated) {
+          onNotesGenerated();
+        }
+      } else {
+        throw new Error("Failed to generate summary");
+      }
+    } catch (err: any) {
+      console.error("Error generating notes:", err);
+      setError(err.message || "Failed to generate notes");
+    } finally {
+      setIsGeneratingNotes(false);
     }
   };
 
@@ -519,6 +713,109 @@ export function RealTimeRecording({ onClose }: RealTimeRecordingProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Generate Notes Section */}
+      <AnimatePresence>
+        {showGenerateNotes && !notesGenerated && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mt-4"
+          >
+            <Card className="border border-border/50 bg-card/50">
+              <CardContent className="p-4">
+                {!classificationResult ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-foreground/5 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-foreground/60" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-foreground/90">Recording Complete</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Generate comprehensive notes from your transcript
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => {
+                          setShowGenerateNotes(false);
+                          if (onClose) onClose();
+                        }}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleClassifyAndShowModal}
+                        disabled={isClassifying}
+                        className="flex-1"
+                      >
+                        {isClassifying ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Generate Notes
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <ConfirmationCard
+                    suggestedCourse={classificationResult.suggestedCourse || "General Course"}
+                    suggestedLessonTitle={classificationResult.suggestedLessonTitle || `Lecture ${new Date().toLocaleDateString()}`}
+                    isNewCourse={classificationResult.isNewCourse !== false}
+                    courseId={classificationResult.courseId}
+                    transcription={finalTranscriptionRef.current}
+                    onConfirm={handleGenerateNotes}
+                    onCancel={() => {
+                      setClassificationResult(null);
+                      setShowGenerateNotes(false);
+                    }}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {notesGenerated && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 border border-green-500/50 bg-green-500/5 rounded-lg p-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                <FileText className="w-4 h-4 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground/90">Notes Generated Successfully!</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your lecture notes have been saved and are ready to view.
+                </p>
+              </div>
+              {onClose && (
+                <Button
+                  onClick={onClose}
+                  variant="outline"
+                  size="sm"
+                >
+                  Close
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Error Message */}
       <AnimatePresence>
