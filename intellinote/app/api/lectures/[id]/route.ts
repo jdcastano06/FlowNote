@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Lecture from "@/models/Lecture";
+import Course from "@/models/Course"; // Import Course model for populate()
 
 // PATCH /api/lectures/[id] - Update a lecture
 export async function PATCH(
