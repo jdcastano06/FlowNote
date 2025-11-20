@@ -134,12 +134,32 @@ export function RichTextEditor({
   }, [editor]);
 
   const handleFileSelect = useCallback(() => {
-    fileInputRef.current?.click();
+    // Show disclaimer alert before opening file picker
+    const confirmed = window.confirm(
+      "⚠️ Vercel Serverless Limitation\n\n" +
+      "Image uploads are limited to 4.8MB due to Vercel's serverless environment constraints.\n\n" +
+      "Supported formats: JPEG, PNG, GIF, WebP\n\n" +
+      "Continue with upload?"
+    );
+    
+    if (confirmed) {
+      fileInputRef.current?.click();
+    }
   }, []);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate file size before upload (4.8MB limit)
+      const maxSize = 4.8 * 1024 * 1024; // 4.8MB
+      if (file.size > maxSize) {
+        alert("File is too large. Maximum size is 4.8MB due to Vercel serverless limits.");
+        // Reset input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
       handleImageUpload(file);
     }
     // Reset input so same file can be selected again
@@ -158,7 +178,7 @@ export function RichTextEditor({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
         onChange={handleFileChange}
         className="hidden"
       />

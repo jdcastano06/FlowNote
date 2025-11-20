@@ -17,11 +17,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (max 4.8MB due to Vercel serverless limits)
+    const maxSize = 4.8 * 1024 * 1024; // 4.8MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "File size exceeds 10MB limit" },
+        { error: "File size exceeds 4.8MB limit due to Vercel serverless constraints" },
         { status: 400 }
       );
     }
