@@ -1,10 +1,10 @@
-# IntelliNote: AI-Powered Lecture Notetaking Assistant
+# Noteflow: AI-Powered Lecture Notetaking Assistant
 
 ## Overview
 
-IntelliNote is a web application designed to assist students in **reducing cognitive load** during lectures and studying. Many students struggle to take detailed notes while simultaneously trying to understand explanations, examples, and context. Listening, processing, and writing at the same time often leads to incomplete notes and gaps in understanding.
+Noteflow is a web application designed to assist students in **reducing cognitive load** during lectures and studying. Many students struggle to take detailed notes while simultaneously trying to understand explanations, examples, and context. Listening, processing, and writing at the same time often leads to incomplete notes and gaps in understanding.
 
-This application allows students to **upload or record lecture audio**, which is automatically transcribed using Azure Speech-to-Text. The transcript is then processed by **GPT-4o mini** (chosen for its cost/performance balance) to generate clean, structured summaries, key takeaways, and optional study aids such as flashcards or quiz questions. Students can organize their notes into different courses and revisit summaries to reinforce memory retention.
+This application allows students to **upload or record lecture audio**, which is automatically transcribed using Azure Speech-to-Text. The transcript is then processed by **DigitalOcean GPT-OSS-120B** (via Inference API) to generate clean, structured summaries, key points, and study materials. Students can organize their notes into different courses with custom emoji icons and revisit summaries to reinforce memory retention.
 
 The goal is to improve **comprehension, study efficiency, and retention**—not just generate raw transcripts, but **meaningful, usable notes**.
 
@@ -12,86 +12,73 @@ The goal is to improve **comprehension, study efficiency, and retention**—not 
 
 ## Data Model
 
-The system will store **Users**, **Courses**, **Lectures**, **Transcripts**, and **Study Packs**.
+The system stores **Users**, **Courses**, and **Lectures** (which include transcripts and summaries).
 
 - A **User** may have multiple **Courses**
 - Each **Course** may have multiple **Lectures**
-- Each **Lecture** has one **Transcript**
-- Each **Lecture** has one generated **Study Pack** (summary, flashcards, etc.)
+- Each **Lecture** contains:
+  - Raw transcription text
+  - AI-generated summary/content (HTML formatted)
+  - Audio URL (if uploaded)
+  - Status (uploaded, transcribed, processed)
 
 ### Sample Documents
 
 #### User
-```js
+```ts
 {
-  username: "juan",
-  passwordHash: "hashed_password",
-  courses: [ObjectId("..."), ObjectId("...")]
+  clerkUserId: string; // Clerk authentication ID
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  courses: ObjectId[];
+  createdAt: Date;
+  updatedAt: Date;
 }
-````
+```
 
 #### Course
 
-```js
+```ts
 {
-  user: ObjectId("..."),
-  title: "CS-UH 2012 - Software Engineering",
-  description: "Lecture and project-based introduction to software engineering.",
-  createdAt: "2025-10-29T20:20:32.000Z"
+  userId: string; // Clerk user ID
+  title: string;
+  description?: string;
+  icon?: string; // Emoji icon
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
 #### Lecture
 
-```js
+```ts
 {
-  courseId: ObjectId("..."),
-  title: "Week 3 - Event Loops & Concurrency",
-  audioUrl: "/uploads/week3.m4a",
-  status: "processed", // uploaded | transcribed | processed
-  createdAt: "2025-10-29T21:10:12.000Z"
-}
-```
-
-#### Transcript
-
-```js
-{
-  lectureId: ObjectId("..."),
-  text: "Full transcript text...",
-  segments: [
-    { start: 0.0, end: 4.2, text: "Today we'll cover event loops..." }
-  ]
-}
-```
-
-#### StudyPack
-
-```js
-{
-  lectureId: ObjectId("..."),
-  summary: "This lecture introduces event loops...",
-  keyPoints: [
-    "JavaScript is single-threaded",
-    "Concurrency is handled through callbacks, promises and async/await"
-  ],
-  flashcards: [
-    { q: "What is the call stack?", a: "The mechanism JavaScript uses to keep track of function execution." }
-  ],
-  quiz: [
-    { question: "Which of the following manages async callbacks?", choices: ["Heap", "Queue", "Call Stack", "Thread Pool"], answerIndex: 1 }
-  ]
+  userId: string; // Clerk user ID
+  courseId: ObjectId; // Reference to Course
+  title: string;
+  audioUrl: string; // Azure Blob Storage URL or empty for manual notes
+  status: "uploaded" | "transcribed" | "processed";
+  content: string; // AI-generated summary (HTML formatted) or manual content
+  transcription?: string; // Raw transcription text from audio
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
 ---
 
-## Link to First Draft Schema
+## Schema Implementation
 
-A first draft of schemas will be located in:
-**`/models/*.js`**
+Schemas are implemented using Mongoose and TypeScript, located in:
+**`intellinote/models/`** (Note: The codebase folder is still named `intellinote` for historical reasons, but the application is branded as Noteflow)
 
-(Will be included in the repository as part of milestone submission.)
+- `Course.ts` - Course schema with user reference and emoji icons
+- `Lecture.ts` - Lecture schema with course reference, transcription, and AI-generated content
+- `User.ts` - User schema with Clerk authentication integration
+- `index.ts` - Centralized model exports for serverless compatibility
+
+The models use Mongoose schemas with TypeScript interfaces for type safety. The `index.ts` file ensures proper model registration order in Vercel's serverless environment.
 
 ---
 
@@ -195,17 +182,17 @@ This API provides accurate transcription of lecture recordings without requiring
 
 ---
 
-### GPT-4o mini (OpenAI API) (1 point)
+### DigitalOcean GPT-OSS-120B (via Inference API) (1 point)
 
 **What is it?**  
-GPT-4o mini is OpenAI's efficient language model optimized for cost and speed while maintaining strong reasoning capabilities. It can generate structured text, summaries, and follow instructions for creating flashcards and quiz questions.
+GPT-OSS-120B is a large open-source language model accessible through DigitalOcean's Inference API. It provides powerful text generation capabilities for creating structured summaries, key points, and study materials from transcriptions.
 
 **Why use it?**  
-This model provides excellent cost/performance balance for generating multiple study materials from transcripts. It's much cheaper than GPT-4 while still producing high-quality summaries and structured outputs. The API is well-documented and easy to integrate, making it ideal for transforming raw transcripts into useful study aids.
+This model offers excellent performance for generating comprehensive study materials from lecture transcriptions. The DigitalOcean Inference API provides a cost-effective way to access large language models without managing infrastructure. It generates well-structured HTML-formatted notes, extracts key points, and classifies course/lesson content effectively.
 
 **Candidate modules/solutions considered:**
-- GPT-4 (higher quality but 15x more expensive)
-- Claude (comparable performance, but GPT-4o mini is more cost-effective)
+- OpenAI GPT-4o mini (good but more expensive for high-volume usage)
+- Azure OpenAI (similar features, but DigitalOcean was more cost-effective)
 - Local LLMs (requires significant infrastructure, less reliable)
 
 ---
@@ -214,24 +201,131 @@ This model provides excellent cost/performance balance for generating multiple s
 
 ---
 
-## Initial Main Project File
+## Features
 
-`app.mjs` will contain:
+### ✅ Implemented Features
 
-* Express server setup
-* Logging middleware
-* Basic route placeholders
-* MongoDB connection setup
+- **Audio Upload & Transcription**: Upload audio files (MP3, WAV, M4A) up to 4.8MB for automatic transcription
+- **Real-time Recording**: Browser-based recording with live transcription using Azure Speech SDK
+- **AI-Powered Summaries**: Automatic generation of structured, HTML-formatted notes with key points
+- **Course Classification**: AI suggests course and lesson titles from transcription content
+- **Rich Text Editor**: Tiptap-based editor with formatting, links, and inline image uploads
+- **Image Upload**: AJAX image uploads to Azure Blob Storage with secure SAS URLs
+- **Course Organization**: Create courses with custom emoji icons and organize lectures
+- **Manual Notes**: Create notes manually with rich text formatting
+- **Authentication**: Secure user authentication via Clerk
+- **Responsive Design**: Modern, mobile-friendly UI with shadcn/ui components
+
+### 🚀 Deployment
+
+**Live Application**: [https://flow-note-omega.vercel.app](https://flow-note-omega.vercel.app)
+
+The application is deployed on Vercel with serverless functions. All environment variables are configured in Vercel project settings.
+
+---
+
+## Tech Stack
+
+- **Frontend**: React 18 + Next.js 16 (App Router) with TypeScript
+- **Backend**: Next.js API Routes (serverless)
+- **Database**: MongoDB Atlas with Mongoose ODM
+- **Storage**: Azure Blob Storage with SAS URLs
+- **AI Services**: 
+  - Azure Speech-to-Text API (transcription)
+  - DigitalOcean Inference API (GPT-OSS-120B for summaries)
+- **Authentication**: Clerk
+- **UI Components**: shadcn/ui + TailwindCSS
+- **Deployment**: Vercel
+
+---
+
+## Setup & Installation
+
+### Prerequisites
+
+- Node.js 18+ and pnpm (or npm)
+- MongoDB Atlas account
+- Azure Speech Services account
+- DigitalOcean account (for Inference API)
+- Clerk account (for authentication)
+- Azure Storage Account (for file uploads)
+
+### Environment Variables
+
+Create a `.env.local` file in the `intellinote` directory (the codebase folder name):
+
+```env
+# MongoDB
+MONGODB_URI=mongodb+srv://...
+
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+
+# Azure Speech Services
+AZURE_SPEECH_KEY=...
+AZURE_SPEECH_REGION=eastus
+AZURE_SPEECH_ENDPOINT=https://...
+
+# Azure Storage
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;...
+
+# LLM API (DigitalOcean Inference)
+LLM_API_KEY=...
+LLM_ENDPOINT=https://...
+```
+
+### Installation
+
+```bash
+cd intellinote
+pnpm install
+pnpm dev
+```
+
+Visit `http://localhost:3000` to see the application.
+
+---
+
+## Project Structure
+
+```
+intellinote/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   ├── dashboard/         # Dashboard pages
+│   └── page.tsx           # Landing page
+├── components/            # React components
+│   ├── audio/             # Audio upload/recording
+│   ├── dashboard/         # Dashboard components
+│   ├── forms/             # Form components
+│   └── ui/                # shadcn/ui components
+├── lib/                   # Utility libraries
+│   ├── azure.ts           # Azure Blob Storage
+│   ├── mongodb.ts         # MongoDB connection
+│   ├── TranscriptionProcessor.ts  # ES6 class for text processing
+│   └── NoteFormatter.ts   # ES6 class for note formatting
+└── models/                # Mongoose schemas
+    ├── Course.ts
+    ├── Lecture.ts
+    ├── User.ts
+    └── index.ts           # Centralized exports
+```
 
 ---
 
 ## References Used
 
-This README structure is based on the sample final project documentation:
-
 - Azure Speech SDK Docs: [https://learn.microsoft.com/azure/cognitive-services/speech-service/](https://learn.microsoft.com/azure/cognitive-services/speech-service/)
 - React Docs: [https://react.dev](https://react.dev)
+- Next.js Docs: [https://nextjs.org/docs](https://nextjs.org/docs)
 - shadcn/ui Documentation: [https://ui.shadcn.com](https://ui.shadcn.com)
-- OpenAI API Documentation: [https://platform.openai.com/docs](https://platform.openai.com/docs)
+- DigitalOcean Inference API: [https://docs.digitalocean.com/products/functions/reference/runtimes/](https://docs.digitalocean.com/products/functions/reference/runtimes/)
+- Tiptap Editor: [https://tiptap.dev](https://tiptap.dev)
+- Clerk Authentication: [https://clerk.com/docs](https://clerk.com/docs)
 
 ---
