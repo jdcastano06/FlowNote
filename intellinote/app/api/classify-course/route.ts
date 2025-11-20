@@ -3,9 +3,6 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { Course } from "@/models"; // Import from central models file
 
-const LLM_API_KEY = process.env.LLM_API_KEY;
-const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
-
 /**
  * POST /api/classify-course
  * 
@@ -13,7 +10,12 @@ const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
  */
 export async function POST(request: Request) {
   try {
+    // Read environment variables inside handler for serverless compatibility
+    const LLM_API_KEY = process.env.LLM_API_KEY;
+    const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
+
     if (!LLM_API_KEY || !LLM_ENDPOINT) {
+      console.error("[classify-course] LLM_API_KEY or LLM_ENDPOINT not configured");
       return NextResponse.json(
         { error: "LLM API key or endpoint not configured" },
         { status: 500 }

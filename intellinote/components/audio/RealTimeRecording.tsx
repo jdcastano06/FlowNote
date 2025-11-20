@@ -163,7 +163,10 @@ export function RealTimeRecording({ onClose, onNotesGenerated }: RealTimeRecordi
       // Get token from our API
       const tokenResponse = await fetch("/api/speech-token");
       if (!tokenResponse.ok) {
-        throw new Error("Failed to get speech token");
+        const errorData = await tokenResponse.json().catch(() => ({ error: "Unknown error" }));
+        const errorMessage = errorData.error || "Failed to get speech token";
+        const errorDetails = errorData.details ? `: ${errorData.details}` : "";
+        throw new Error(`${errorMessage}${errorDetails}`);
       }
 
       const { token, region } = await tokenResponse.json();

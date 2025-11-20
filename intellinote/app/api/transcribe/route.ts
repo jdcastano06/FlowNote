@@ -1,10 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
-const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
-const AZURE_SPEECH_ENDPOINT = process.env.AZURE_SPEECH_ENDPOINT;
-
 /**
  * POST /api/transcribe
  * 
@@ -17,6 +13,11 @@ export async function POST(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Read environment variables inside handler for serverless compatibility
+    const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
+    const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
+    const AZURE_SPEECH_ENDPOINT = process.env.AZURE_SPEECH_ENDPOINT;
 
     const formData = await request.formData();
     const audioFile = formData.get("audio") as File;

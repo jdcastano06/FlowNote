@@ -3,9 +3,6 @@ import { NextResponse } from "next/server";
 import { TranscriptionProcessor } from "@/lib/TranscriptionProcessor";
 import { NoteFormatter } from "@/lib/NoteFormatter";
 
-const LLM_API_KEY = process.env.LLM_API_KEY;
-const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
-
 /**
  * POST /api/generate-summary
  * 
@@ -19,6 +16,10 @@ export async function POST(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Read environment variables inside handler for serverless compatibility
+    const LLM_API_KEY = process.env.LLM_API_KEY;
+    const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
 
     if (!LLM_API_KEY || !LLM_ENDPOINT) {
       return NextResponse.json(
