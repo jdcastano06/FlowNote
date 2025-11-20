@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { TranscriptionProcessor } from "@/lib/TranscriptionProcessor";
 
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // Use ES6 class to process current chunk
+    const processor = new TranscriptionProcessor(currentChunk);
+    const cleanedChunk = processor.clean();
+
     console.log("Generating real-time insights:", {
       contextLength: context?.length || 0,
       currentChunkLength: currentChunk.length,
@@ -56,7 +61,7 @@ Here is the latest part of the lecture that just happened:
 
 [CURRENT CHUNK START]
 
-${currentChunk}
+${cleanedChunk}
 
 [CURRENT CHUNK END]
 

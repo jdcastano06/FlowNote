@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { TranscriptionProcessor } from "@/lib/TranscriptionProcessor";
+import { NoteFormatter } from "@/lib/NoteFormatter";
 
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const LLM_ENDPOINT = process.env.LLM_ENDPOINT;
@@ -40,6 +42,12 @@ export async function POST(request: Request) {
       courseTitle: courseTitle || "Not provided",
       lessonTitle: lessonTitle || "Not provided"
     });
+
+    // Use ES6 class to process transcription
+    const processor = new TranscriptionProcessor(transcription);
+    const cleanedTranscription = processor.clean();
+    const wordCount = processor.getWordCount();
+    console.log(`Processed transcription: ${wordCount} words, ${processor.getCharacterCount()} characters`);
 
     // Create prompt for the LLM with course/lesson context
     const contextInfo = courseTitle || lessonTitle 
@@ -92,7 +100,7 @@ Format your response as JSON:
 }
 
 Transcription:
-${transcription}
+${cleanedTranscription}
 
 Generate detailed, structured notes that a student can use for studying. Include all important information, formulas, definitions, and explanations. Use proper HTML formatting for readability. Respond with ONLY the JSON object, no additional text.`;
 
